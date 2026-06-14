@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NEON MECHA ARENA Spectator</title>
+    <link rel="stylesheet" href="/shared.css">
+    <style>
+      body {
+        background: #06101d;
+        overflow: hidden;
+      }
+
+      body.studio-capture {
+        background: #000;
+      }
+
+      .spectator-shell {
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 0;
+      }
+
+      .spectator-frame {
+        width: 100vw;
+        height: 100vh;
+        border: 0;
+        border-radius: 0;
+      }
+
+      .spectator-frame[data-layout="16-9"] {
+        aspect-ratio: 16 / 9;
+        width: min(100vw, calc(100vh * 16 / 9));
+        height: min(100vh, calc(100vw * 9 / 16));
+      }
+
+      .spectator-frame[data-layout="9-16"] {
+        aspect-ratio: 9 / 16;
+        width: min(100vw, calc(100vh * 9 / 16));
+        height: min(100vh, calc(100vw * 16 / 9));
+      }
+
+      body.studio-capture .spectator-frame {
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      body.studio-capture .toolbar {
+        display: none;
+      }
+
+      .toolbar {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        display: flex;
+        gap: 8px;
+        z-index: 3;
+        opacity: 0;
+        transition: opacity 140ms ease;
+      }
+
+      .toolbar:hover,
+      .toolbar:focus-within {
+        opacity: 1;
+      }
+
+      .toolbar button {
+        min-height: 34px;
+        padding: 0 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="spectator-shell" id="spectatorShell">
+      <div class="canvas-wrap spectator-frame" id="frame" data-layout="16-9">
+        <canvas id="gameCanvas"></canvas>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button id="audioEnable">Audio</button>
+      <button id="toggleBgm">BGM</button>
+      <button id="toggleSfx">SFX</button>
+      <button id="layout169">16:9</button>
+      <button id="layout916">9:16</button>
+      <button id="fullscreen">全螢幕</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/spectator.js"></script>
+  </body>
+</html>

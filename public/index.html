@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NEON MECHA ARENA</title>
+    <link rel="stylesheet" href="/shared.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark" aria-hidden="true"></div>
+          <div>
+            <h1>NEON MECHA ARENA</h1>
+            <p>TikTok LIVE 觀眾互動機甲競技場</p>
+          </div>
+        </div>
+        <span class="status-pill" id="health"><span class="dot"></span><span>檢查中</span></span>
+      </header>
+
+      <section class="grid three">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>控制台</h2>
+          </div>
+          <div class="panel-body stack">
+            <p class="muted">建立場次、生成玩家連結、控制開局、導演提示、戰場事件與數據輸出。</p>
+            <button class="primary" onclick="location.href='/admin'">開啟控制台</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>玩家控制器</h2>
+          </div>
+          <div class="panel-body stack">
+            <p class="muted">觀眾掃描直播 QR code 加入，化身紅藍機甲駕駛員即時操作。</p>
+            <div class="notice">請先到 Admin 建立 session。</div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>直播戰場</h2>
+          </div>
+          <div class="panel-body stack">
+            <p class="muted">給 OBS 或 TikTok LIVE Studio 擷取的 NEON MECHA ARENA 戰場畫面。</p>
+            <div class="notice">建立 session 後會自動產生 spectator URL。</div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script>
+      fetch("/healthz")
+        .then((res) => res.json())
+        .then((data) => {
+          const health = document.querySelector("#health");
+          health.querySelector(".dot").className = "dot ok";
+          health.querySelector("span:last-child").textContent = `online · ${data.tickRate}Hz`;
+        })
+        .catch(() => {
+          const health = document.querySelector("#health");
+          health.querySelector(".dot").className = "dot bad";
+          health.querySelector("span:last-child").textContent = "offline";
+        });
+    </script>
+  </body>
+</html>

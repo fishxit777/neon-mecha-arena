@@ -1,0 +1,12 @@
+node_modules/
+.env
+npm-debug.log*
+*.log
+coverage/
+dist/
+qa/
+qa_final_check_2026_06_07/
+*.local
+.local-tools/
+tmp/
+logs/*.log

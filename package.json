@@ -1,0 +1,27 @@
+{
+  "name": "tiktok-live-pvp-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NEON MECHA ARENA TikTok LIVE interactive mecha battle game with Socket.IO player, spectator, and admin views.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --env-file-if-exists=.env --watch src/server.js",
+    "rehearsal": "powershell -ExecutionPolicy Bypass -File scripts/start-rehearsal.ps1",
+    "public:https": "powershell -ExecutionPolicy Bypass -File scripts/start-public-https.ps1",
+    "public:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-public-https.ps1",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.60.0",
+    "socket.io-client": "^4.8.3"
+  }
+}

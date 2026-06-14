@@ -1,0 +1,1696 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>加入 NEON MECHA ARENA</title>
+    <link rel="stylesheet" href="/shared.css">
+    <style>
+      body {
+        overscroll-behavior: none;
+        touch-action: manipulation;
+        background:
+          radial-gradient(circle at 18% 10%, rgba(56, 189, 248, 0.18), transparent 26%),
+          radial-gradient(circle at 82% 18%, rgba(248, 113, 113, 0.12), transparent 28%),
+          linear-gradient(180deg, #08111f 0%, #0c1725 52%, #071018 100%);
+        color: #e5eef8;
+      }
+
+      .player-shell {
+        width: min(100% - 20px, 620px);
+        margin: 0 auto;
+        padding: 14px 0 24px;
+      }
+
+      .player-shell .topbar {
+        padding: 8px 0;
+      }
+
+      .player-shell .brand h1 {
+        color: #f8fafc;
+      }
+
+      .player-shell .brand p,
+      .player-shell .muted {
+        color: #93a4b8;
+      }
+
+      .player-shell .status-pill {
+        border-color: rgba(148, 163, 184, 0.34);
+        background: rgba(15, 23, 42, 0.72);
+        color: #dbeafe;
+        box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.08);
+      }
+
+      .player-shell .panel {
+        border-color: rgba(148, 163, 184, 0.28);
+        background:
+          linear-gradient(180deg, rgba(15, 23, 42, 0.93), rgba(8, 14, 26, 0.97)),
+          #0f172a;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      }
+
+      .player-shell .panel-header {
+        border-bottom-color: rgba(148, 163, 184, 0.24);
+      }
+
+      .player-shell input {
+        border-color: rgba(148, 163, 184, 0.34);
+        background: rgba(15, 23, 42, 0.86);
+        color: #f8fafc;
+      }
+
+      .player-shell input::placeholder {
+        color: #64748b;
+      }
+
+      .player-shell button.primary {
+        border-color: #38bdf8;
+        background: linear-gradient(135deg, #0f766e, #2563eb);
+        color: #f8fafc;
+        box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24);
+      }
+
+      .join-status {
+        min-height: 0;
+        padding: 10px 12px;
+        border: 1px solid rgba(248, 113, 113, 0.48);
+        border-left: 4px solid #f87171;
+        border-radius: 6px;
+        background:
+          linear-gradient(90deg, rgba(127, 29, 29, 0.32), rgba(15, 23, 42, 0.9));
+        color: #fecaca;
+        box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.08);
+      }
+
+      .player-card {
+        display: grid;
+        gap: 14px;
+      }
+
+      .control-deck {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(108px, 0.72fr);
+        gap: 14px;
+        padding: 14px;
+        border: 1px solid rgba(56, 189, 248, 0.26);
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94)),
+          repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.08) 0 1px, transparent 1px 18px);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+          inset 0 0 32px rgba(56, 189, 248, 0.08),
+          0 18px 42px rgba(0, 0, 0, 0.28);
+        user-select: none;
+      }
+
+      .control-deck.is-lefty {
+        grid-template-columns: minmax(108px, 0.72fr) minmax(0, 1.45fr);
+      }
+
+      .control-deck.is-lefty .move-unit {
+        order: 2;
+      }
+
+      .control-deck.is-lefty .fire-unit {
+        order: 1;
+      }
+
+      .control-deck.is-customizing {
+        border-color: rgba(125, 211, 252, 0.72);
+        z-index: 12;
+        box-shadow:
+          inset 0 0 0 1px rgba(125, 211, 252, 0.18),
+          inset 0 0 42px rgba(56, 189, 248, 0.14),
+          0 0 34px rgba(56, 189, 248, 0.18),
+          0 18px 42px rgba(0, 0, 0, 0.28);
+      }
+
+      .control-deck.is-customizing,
+      .control-deck.has-custom-offset {
+        display: block;
+        min-height: 360px;
+        overflow: hidden;
+      }
+
+      .control-options {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .layout-switch {
+        display: inline-grid;
+        grid-template-columns: repeat(2, minmax(78px, 1fr));
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.78);
+        box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.05);
+      }
+
+      .layout-option {
+        min-height: 34px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #93a4b8;
+        padding: 0 14px;
+        font-weight: 700;
+      }
+
+      .layout-option.active {
+        background: linear-gradient(135deg, rgba(14, 116, 144, 0.92), rgba(37, 99, 235, 0.92));
+        color: #f8fafc;
+        box-shadow: 0 0 18px rgba(56, 189, 248, 0.20);
+      }
+
+      .control-action {
+        min-height: 42px;
+        border-radius: 999px;
+        border-color: rgba(148, 163, 184, 0.28);
+        background: rgba(15, 23, 42, 0.78);
+        color: #dbeafe;
+        padding: 0 14px;
+        font-weight: 800;
+        box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.05);
+      }
+
+      .control-action.active {
+        border-color: rgba(125, 211, 252, 0.84);
+        background: linear-gradient(135deg, rgba(14, 116, 144, 0.98), rgba(37, 99, 235, 0.98));
+        color: #f8fafc;
+        box-shadow:
+          inset 0 0 18px rgba(125, 211, 252, 0.20),
+          0 0 22px rgba(56, 189, 248, 0.20);
+      }
+
+      .control-unit {
+        position: relative;
+        min-width: 0;
+        min-height: 100%;
+        transform: translate(var(--unit-x, 0px), var(--unit-y, 0px)) scale(var(--control-scale, 1));
+        transform-origin: center;
+        transition: transform 160ms ease, filter 160ms ease;
+        touch-action: none;
+      }
+
+      .move-unit,
+      .fire-unit {
+        display: grid;
+      }
+
+      .fire-unit {
+        min-height: 220px;
+      }
+
+      .control-deck.is-customizing .move-unit,
+      .control-deck.has-custom-offset .move-unit {
+        position: absolute;
+        left: 14px;
+        right: auto;
+        bottom: 14px;
+        width: calc(68% - 22px);
+        height: 228px;
+        min-height: 0;
+      }
+
+      .control-deck.is-customizing .fire-unit,
+      .control-deck.has-custom-offset .fire-unit {
+        position: absolute;
+        left: auto;
+        right: 14px;
+        bottom: 14px;
+        width: calc(32% - 8px);
+        height: 228px;
+        min-height: 0;
+      }
+
+      .control-deck.is-lefty.is-customizing .move-unit,
+      .control-deck.is-lefty.has-custom-offset .move-unit {
+        left: auto;
+        right: 14px;
+      }
+
+      .control-deck.is-lefty.is-customizing .fire-unit,
+      .control-deck.is-lefty.has-custom-offset .fire-unit {
+        left: 14px;
+        right: auto;
+      }
+
+      .control-deck.is-customizing .control-unit {
+        cursor: grab;
+        z-index: 4;
+      }
+
+      .control-deck.is-customizing .control-unit.is-dragging {
+        cursor: grabbing;
+        z-index: 8;
+        transition: none;
+        filter: drop-shadow(0 0 18px rgba(125, 211, 252, 0.40));
+      }
+
+      .drag-grip {
+        position: absolute;
+        z-index: 7;
+        top: 9px;
+        right: 9px;
+        display: none;
+        width: 34px;
+        height: 34px;
+        border: 1px solid rgba(125, 211, 252, 0.62);
+        border-radius: 50%;
+        background:
+          radial-gradient(circle, rgba(125, 211, 252, 0.70) 0 3px, transparent 4px),
+          linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.92));
+        box-shadow:
+          inset 0 0 14px rgba(56, 189, 248, 0.18),
+          0 0 18px rgba(56, 189, 248, 0.18);
+        pointer-events: none;
+      }
+
+      .drag-grip::before,
+      .drag-grip::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        background: rgba(186, 230, 253, 0.88);
+        border-radius: 999px;
+        transform: translate(-50%, -50%);
+      }
+
+      .drag-grip::before {
+        width: 18px;
+        height: 2px;
+      }
+
+      .drag-grip::after {
+        width: 2px;
+        height: 18px;
+      }
+
+      .control-deck.is-customizing .drag-grip {
+        display: block;
+      }
+
+      .control-deck::before,
+      .control-deck::after {
+        content: "";
+        position: absolute;
+        width: 52px;
+        height: 2px;
+        top: 9px;
+        background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.9));
+      }
+
+      .control-deck::before {
+        left: 14px;
+      }
+
+      .control-deck::after {
+        right: 14px;
+        transform: scaleX(-1);
+      }
+
+      .joystick {
+        position: relative;
+        display: grid;
+        place-items: center;
+        height: 100%;
+        min-height: 220px;
+        border: 1px solid rgba(56, 189, 248, 0.18);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 50% 52%, rgba(56, 189, 248, 0.14), transparent 36%),
+          linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.94));
+        box-shadow:
+          inset 0 0 32px rgba(56, 189, 248, 0.07),
+          0 12px 28px rgba(0, 0, 0, 0.20);
+        overflow: hidden;
+        touch-action: none;
+      }
+
+      .joystick::before,
+      .joystick::after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+      }
+
+      .joystick::before {
+        inset: 13px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+      }
+
+      .joystick::after {
+        width: 68%;
+        height: 1px;
+        top: 50%;
+        left: 16%;
+        background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.28), transparent);
+      }
+
+      .joystick.active {
+        border-color: rgba(56, 189, 248, 0.48);
+        box-shadow:
+          inset 0 0 36px rgba(56, 189, 248, 0.13),
+          0 0 26px rgba(56, 189, 248, 0.13);
+      }
+
+      .joystick-base {
+        position: relative;
+        width: min(88%, 210px);
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.14) 0 12%, transparent 13%),
+          radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.96) 0 34%, rgba(30, 41, 59, 0.88) 35% 44%, rgba(2, 6, 23, 0.95) 45% 100%);
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        box-shadow:
+          inset 0 0 38px rgba(56, 189, 248, 0.13),
+          inset 0 -18px 32px rgba(0, 0, 0, 0.36),
+          0 18px 32px rgba(0, 0, 0, 0.30);
+      }
+
+      .joystick-base::before,
+      .joystick-base::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      .joystick-base::before {
+        inset: 15%;
+        border: 1px solid rgba(56, 189, 248, 0.26);
+      }
+
+      .joystick-base::after {
+        inset: 33%;
+        border: 1px dashed rgba(148, 163, 184, 0.26);
+      }
+
+      .joystick-axis {
+        position: absolute;
+        background: rgba(56, 189, 248, 0.20);
+        border-radius: 999px;
+        pointer-events: none;
+      }
+
+      .joystick-axis.x {
+        left: 15%;
+        right: 15%;
+        top: 50%;
+        height: 2px;
+      }
+
+      .joystick-axis.y {
+        top: 15%;
+        bottom: 15%;
+        left: 50%;
+        width: 2px;
+      }
+
+      .joystick-thumb {
+        position: absolute;
+        z-index: 2;
+        left: 50%;
+        top: 50%;
+        width: 35%;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        border: 1px solid rgba(186, 230, 253, 0.58);
+        background:
+          radial-gradient(circle at 50% 38%, #7dd3fc 0 15%, #38bdf8 16% 33%, rgba(14, 116, 144, 0.96) 34% 100%);
+        transform: translate(-50%, -50%) translate(var(--stick-x, 0px), var(--stick-y, 0px));
+        box-shadow:
+          inset 0 0 18px rgba(255, 255, 255, 0.20),
+          inset 0 -12px 18px rgba(8, 47, 73, 0.62),
+          0 0 24px rgba(56, 189, 248, 0.40),
+          0 16px 26px rgba(0, 0, 0, 0.34);
+        transition: transform 90ms ease, box-shadow 120ms ease;
+      }
+
+      .joystick.active .joystick-thumb {
+        transition: none;
+        box-shadow:
+          inset 0 0 20px rgba(255, 255, 255, 0.24),
+          inset 0 -12px 18px rgba(8, 47, 73, 0.66),
+          0 0 34px rgba(56, 189, 248, 0.56),
+          0 18px 30px rgba(0, 0, 0, 0.36);
+      }
+
+      .control-btn {
+        position: relative;
+        min-height: 64px;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.42);
+        border-radius: 6px;
+        background:
+          linear-gradient(145deg, rgba(30, 41, 59, 0.96), rgba(2, 6, 23, 0.96)),
+          linear-gradient(90deg, rgba(56, 189, 248, 0.16), transparent);
+        color: #e2e8f0;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          inset 0 -10px 18px rgba(0, 0, 0, 0.26),
+          0 10px 22px rgba(0, 0, 0, 0.22);
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        touch-action: none;
+      }
+
+      .control-btn::before {
+        content: "";
+        position: absolute;
+        inset: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 4px;
+        pointer-events: none;
+      }
+
+      .control-btn::after {
+        content: "";
+        position: absolute;
+        inset: auto 10px 9px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.38);
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.34);
+        pointer-events: none;
+      }
+
+      .control-btn.attack {
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 8px;
+        min-height: 100%;
+        border-color: rgba(248, 113, 113, 0.7);
+        background:
+          radial-gradient(circle at 50% 18%, rgba(248, 113, 113, 0.32), transparent 36%),
+          linear-gradient(160deg, rgba(69, 10, 10, 0.98), rgba(15, 23, 42, 0.96));
+        color: #fee2e2;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.13),
+          inset 0 -16px 28px rgba(0, 0, 0, 0.32),
+          0 14px 28px rgba(127, 29, 29, 0.28);
+      }
+
+      .control-btn.attack::after {
+        background: rgba(248, 113, 113, 0.75);
+        box-shadow: 0 0 18px rgba(248, 113, 113, 0.55);
+      }
+
+      .attack-mark {
+        position: relative;
+        z-index: 1;
+        width: 46px;
+        height: 46px;
+        border: 2px solid rgba(254, 202, 202, 0.76);
+        border-radius: 50%;
+        box-shadow:
+          inset 0 0 18px rgba(248, 113, 113, 0.28),
+          0 0 22px rgba(248, 113, 113, 0.38);
+      }
+
+      .attack-mark::before,
+      .attack-mark::after {
+        content: "";
+        position: absolute;
+        background: rgba(254, 226, 226, 0.88);
+      }
+
+      .attack-mark::before {
+        width: 2px;
+        height: 58px;
+        left: 50%;
+        top: -8px;
+        transform: translateX(-50%);
+      }
+
+      .attack-mark::after {
+        width: 58px;
+        height: 2px;
+        left: -8px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+
+      .attack-label {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 2px;
+        text-align: center;
+      }
+
+      .attack-label strong {
+        font-size: clamp(24px, 7vw, 36px);
+        line-height: 1;
+      }
+
+      .attack-label span {
+        color: #fca5a5;
+        font: 700 11px Consolas, monospace;
+      }
+
+      .control-btn.active {
+        border-color: #38bdf8;
+        background:
+          radial-gradient(circle at 50% 20%, rgba(56, 189, 248, 0.32), transparent 44%),
+          linear-gradient(145deg, rgba(14, 116, 144, 0.98), rgba(15, 23, 42, 0.98));
+        color: #ffffff;
+        transform: translateY(2px) scale(0.985);
+        box-shadow:
+          inset 0 0 24px rgba(56, 189, 248, 0.28),
+          0 0 24px rgba(56, 189, 248, 0.24);
+      }
+
+      .control-btn.attack.active {
+        border-color: #f87171;
+        background:
+          radial-gradient(circle at 50% 24%, rgba(248, 113, 113, 0.45), transparent 42%),
+          linear-gradient(160deg, rgba(153, 27, 27, 0.98), rgba(15, 23, 42, 0.98));
+        box-shadow:
+          inset 0 0 26px rgba(248, 113, 113, 0.28),
+          0 0 28px rgba(248, 113, 113, 0.28);
+      }
+
+      .small-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .stat {
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.94));
+        padding: 10px;
+        text-align: center;
+        box-shadow: inset 0 0 22px rgba(56, 189, 248, 0.05);
+      }
+
+      .stat strong {
+        display: block;
+        font-size: 18px;
+        overflow-wrap: anywhere;
+      }
+
+      @media (max-width: 520px) {
+        .player-shell {
+          width: min(100% - 14px, 620px);
+          padding-top: 10px;
+        }
+
+        .small-stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .control-deck {
+          grid-template-columns: minmax(0, 1.55fr) minmax(92px, 0.72fr);
+          gap: 10px;
+          padding: 10px;
+        }
+
+        .control-deck.is-customizing,
+        .control-deck.has-custom-offset {
+          min-height: 340px;
+        }
+
+        .control-deck.is-customizing .move-unit,
+        .control-deck.has-custom-offset .move-unit {
+          left: 10px;
+          bottom: 10px;
+          width: calc(68% - 15px);
+          height: 214px;
+        }
+
+        .control-deck.is-customizing .fire-unit,
+        .control-deck.has-custom-offset .fire-unit {
+          right: 10px;
+          bottom: 10px;
+          width: calc(32% - 5px);
+          height: 214px;
+        }
+
+        .control-deck.is-lefty.is-customizing .move-unit,
+        .control-deck.is-lefty.has-custom-offset .move-unit {
+          left: auto;
+          right: 10px;
+        }
+
+        .control-deck.is-lefty.is-customizing .fire-unit,
+        .control-deck.is-lefty.has-custom-offset .fire-unit {
+          left: 10px;
+          right: auto;
+        }
+
+        .control-deck.is-lefty {
+          grid-template-columns: minmax(92px, 0.72fr) minmax(0, 1.55fr);
+        }
+
+        .control-options {
+          justify-content: center;
+        }
+
+        .layout-switch {
+          width: 100%;
+        }
+
+        .control-action {
+          flex: 1 1 92px;
+        }
+
+        .joystick {
+          min-height: 190px;
+        }
+
+        .control-btn {
+          min-height: 58px;
+        }
+
+        .attack-mark {
+          width: 38px;
+          height: 38px;
+        }
+
+        .attack-mark::before {
+          height: 50px;
+        }
+
+        .attack-mark::after {
+          width: 50px;
+        }
+      }
+      .player-shell,
+      .player-shell .panel,
+      .player-shell .control-deck,
+      .player-shell .stat,
+      .player-shell button {
+        font-family: var(--font-mono);
+      }
+
+      .player-shell .brand h1,
+      .player-shell .panel-header h2,
+      .attack-label strong {
+        font-family: var(--font-display);
+        letter-spacing: 1.5px;
+      }
+
+      .player-shell .panel {
+        border-radius: var(--r-md);
+        border-color: rgba(27, 46, 78, 0.92);
+        background:
+          linear-gradient(180deg, rgba(13, 21, 37, 0.98), rgba(7, 11, 20, 0.98)),
+          var(--bg-panel);
+      }
+
+      .player-shell .canvas-wrap {
+        border-radius: var(--r-md);
+        border-color: rgba(0, 245, 255, 0.24);
+        background: var(--bg-void);
+      }
+
+      .player-shell .stat {
+        border-radius: var(--r-md);
+        border-color: rgba(27, 46, 78, 0.95);
+        background: linear-gradient(180deg, rgba(17, 29, 53, 0.96), rgba(7, 11, 20, 0.98));
+      }
+
+      .player-shell .stat strong {
+        color: #f8fbff;
+        text-shadow: 0 0 10px rgba(0, 245, 255, 0.16);
+      }
+
+      .layout-switch,
+      .control-action {
+        border-radius: var(--r-md);
+      }
+
+      .joystick {
+        min-height: 228px;
+      }
+
+      .control-btn.attack {
+        border-radius: var(--r-md);
+      }
+
+      @media (max-width: 640px) {
+        body {
+          background: var(--bg-void);
+        }
+
+        .player-shell {
+          width: 100%;
+          max-width: 480px;
+          padding: 0 0 18px;
+        }
+
+        .player-shell .topbar {
+          margin: 0;
+          padding: 14px 18px 12px;
+          background: linear-gradient(180deg, rgba(10, 12, 16, 0.98), rgba(10, 12, 16, 0.7));
+        }
+
+        .player-shell .panel {
+          border-left: 0;
+          border-right: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+
+        #gamePanel .panel-header {
+          padding: 10px 18px;
+        }
+
+        #gamePanel .panel-body {
+          padding: 0;
+          gap: 0;
+        }
+
+        #gamePanel .canvas-wrap.ratio-16-9 {
+          aspect-ratio: 9 / 12;
+          border-left: 0;
+          border-right: 0;
+          border-radius: 0;
+        }
+
+        .small-stats {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 0;
+          padding: 10px 12px;
+          border-top: 1px solid rgba(27, 46, 78, 0.95);
+          border-bottom: 1px solid rgba(27, 46, 78, 0.95);
+          background: rgba(7, 11, 20, 0.96);
+        }
+
+        .stat {
+          min-height: 70px;
+          border-radius: 0;
+          border-top: 0;
+          border-bottom: 0;
+        }
+
+        .control-options {
+          padding: 10px 12px 6px;
+          background: rgba(7, 11, 20, 0.96);
+        }
+
+        .control-deck {
+          border-left: 0;
+          border-right: 0;
+          border-radius: 0;
+          margin: 0;
+          min-height: 330px;
+        }
+
+        .joystick {
+          min-height: 230px;
+        }
+
+        .control-btn.attack {
+          min-height: 230px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        body:has(#gamePanel:not([hidden])) {
+          overflow: hidden;
+        }
+
+        body:has(#gamePanel:not([hidden])) .player-shell {
+          height: 100dvh;
+          max-width: none;
+          padding: 0;
+          overflow: hidden;
+        }
+
+        body:has(#gamePanel:not([hidden])) .player-shell .topbar,
+        body:has(#gamePanel:not([hidden])) #gamePanel .panel-header {
+          display: none;
+        }
+
+        body:has(#gamePanel:not([hidden])) #gamePanel.panel {
+          min-height: 100dvh;
+          border: 0;
+        }
+
+        body:has(#gamePanel:not([hidden])) #gamePanel .panel-body {
+          display: grid;
+          grid-template-rows: minmax(0, 1fr) auto auto clamp(232px, 30dvh, 270px);
+          height: 100dvh;
+          min-height: 0;
+          padding: 0;
+          gap: 0;
+        }
+
+        body:has(#gamePanel:not([hidden])) #gamePanel .canvas-wrap.ratio-16-9 {
+          height: 100%;
+          min-height: 0;
+          aspect-ratio: auto;
+        }
+
+        body:has(#gamePanel:not([hidden])) .small-stats {
+          min-height: 54px;
+          padding: 4px 6px;
+        }
+
+        body:has(#gamePanel:not([hidden])) .stat {
+          min-height: 50px;
+          padding: 4px 3px;
+        }
+
+        body:has(#gamePanel:not([hidden])) .stat .muted {
+          font-size: 11px;
+        }
+
+        body:has(#gamePanel:not([hidden])) .stat strong {
+          font-size: clamp(16px, 5vw, 23px);
+          line-height: 1.05;
+        }
+
+        body:has(#gamePanel:not([hidden])) .control-options {
+          flex-wrap: nowrap;
+          justify-content: flex-start;
+          gap: 6px;
+          min-height: 36px;
+          padding: 4px 8px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+
+        body:has(#gamePanel:not([hidden])) .control-options::-webkit-scrollbar {
+          display: none;
+        }
+
+        body:has(#gamePanel:not([hidden])) .layout-switch {
+          flex: 0 0 auto;
+          width: auto;
+          grid-template-columns: repeat(2, minmax(46px, auto));
+          gap: 2px;
+          padding: 2px;
+        }
+
+        body:has(#gamePanel:not([hidden])) .layout-switch:nth-of-type(2) {
+          grid-template-columns: repeat(3, minmax(36px, auto));
+        }
+
+        body:has(#gamePanel:not([hidden])) .layout-option,
+        body:has(#gamePanel:not([hidden])) .control-action {
+          min-height: 28px;
+          padding: 0 10px;
+          font-size: 12px;
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        body:has(#gamePanel:not([hidden])) .control-action {
+          flex: 0 0 auto;
+        }
+
+        body:has(#gamePanel:not([hidden])) .control-deck {
+          min-height: 0;
+          height: 100%;
+          padding: 8px;
+          gap: 8px;
+        }
+
+        body:has(#gamePanel:not([hidden])) .joystick,
+        body:has(#gamePanel:not([hidden])) .control-btn.attack {
+          min-height: 0;
+          height: 100%;
+        }
+
+        body:has(#gamePanel:not([hidden])) .fire-unit {
+          min-height: 0;
+        }
+      }
+
+      /* NEON MECHA ARENA Battle Profile override: the joined player view becomes the game screen. */
+      body.is-player-active,
+      body:has(#gamePanel:not([hidden])) {
+        margin: 0;
+        overflow: hidden;
+        min-height: 100dvh;
+        background: #050914;
+      }
+
+      body.is-player-active .player-shell,
+      body:has(#gamePanel:not([hidden])) .player-shell {
+        width: min(100vw, 480px);
+        height: 100dvh;
+        margin: 0 auto;
+        padding: 0;
+        overflow: hidden;
+        background:
+          linear-gradient(180deg, rgba(5, 9, 20, 0.98), rgba(2, 6, 13, 0.99)),
+          #050914;
+        box-shadow:
+          0 0 0 1px rgba(27, 46, 78, 0.75),
+          0 0 80px rgba(0, 245, 255, 0.08);
+      }
+
+      body.is-player-active .player-shell .topbar,
+      body:has(#gamePanel:not([hidden])) .player-shell .topbar,
+      body.is-player-active #gamePanel .panel-header,
+      body:has(#gamePanel:not([hidden])) #gamePanel .panel-header {
+        display: none;
+      }
+
+      body.is-player-active #gamePanel.panel,
+      body:has(#gamePanel:not([hidden])) #gamePanel.panel {
+        height: 100dvh;
+        min-height: 100dvh;
+        border: 0;
+        border-radius: 0;
+        background: #050914;
+        box-shadow: none;
+      }
+
+      body.is-player-active #gamePanel .panel-body,
+      body:has(#gamePanel:not([hidden])) #gamePanel .panel-body {
+        position: relative;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) 76px clamp(218px, 30dvh, 286px);
+        height: 100dvh;
+        min-height: 0;
+        gap: 0;
+        padding: 0;
+        background: #050914;
+      }
+
+      body.is-player-active #gamePanel .canvas-wrap.ratio-16-9,
+      body:has(#gamePanel:not([hidden])) #gamePanel .canvas-wrap.ratio-16-9 {
+        height: 100%;
+        min-height: 0;
+        aspect-ratio: auto;
+        border: 0;
+        border-radius: 0;
+        background: #050914;
+      }
+
+      body.is-player-active #gameCanvas,
+      body:has(#gamePanel:not([hidden])) #gameCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      body.is-player-active .small-stats,
+      body:has(#gamePanel:not([hidden])) .small-stats {
+        display: none;
+      }
+
+      .cockpit-strip {
+        display: none;
+      }
+
+      body.is-player-active .cockpit-strip,
+      body:has(#gamePanel:not([hidden])) .cockpit-strip {
+        position: relative;
+        z-index: 6;
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr) 92px 42px;
+        align-items: center;
+        gap: 10px;
+        min-height: 76px;
+        padding: 10px 12px 9px;
+        border-top: 1px solid rgba(27, 46, 78, 0.96);
+        border-bottom: 1px solid rgba(27, 46, 78, 0.96);
+        background:
+          linear-gradient(180deg, rgba(10, 12, 16, 0.98), rgba(5, 9, 20, 0.98)),
+          #0a0c10;
+        color: #c8d8e8;
+        font-family: var(--font-mono);
+      }
+
+      .team-badge {
+        display: grid;
+        place-items: center;
+        min-height: 42px;
+        border: 2px solid #0080ff;
+        color: #2f7fff;
+        background: rgba(0, 128, 255, 0.06);
+        font: 900 18px var(--font-display);
+        letter-spacing: 2px;
+        text-shadow: 0 0 14px rgba(0, 128, 255, 0.65);
+      }
+
+      .team-badge.is-red {
+        border-color: #ff334d;
+        color: #ff334d;
+        background: rgba(255, 34, 68, 0.07);
+        text-shadow: 0 0 14px rgba(255, 34, 68, 0.65);
+      }
+
+      .energy-wrap {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+      }
+
+      .energy-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #4a6080;
+        font: 700 13px var(--font-mono);
+        letter-spacing: 1px;
+      }
+
+      .energy-value {
+        color: #76ff4a;
+        text-shadow: 0 0 12px rgba(57, 255, 20, 0.4);
+      }
+
+      .energy-bars {
+        display: grid;
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+        gap: 5px;
+      }
+
+      .energy-bars span {
+        height: 25px;
+        clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+        background: #1b2e4e;
+        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.36);
+      }
+
+      .energy-bars span.is-filled {
+        background: #76ff4a;
+        box-shadow:
+          0 0 14px rgba(57, 255, 20, 0.46),
+          inset 0 0 10px rgba(255, 255, 255, 0.14);
+      }
+
+      .pilot-summary {
+        position: relative;
+        display: grid;
+        justify-items: end;
+        gap: 2px;
+        min-width: 0;
+        color: #4a6080;
+        font-family: var(--font-mono);
+      }
+
+      .pilot-summary .hp-mini {
+        color: #76ff4a;
+        font-weight: 900;
+        font-size: 13px;
+      }
+
+      .pilot-summary strong {
+        max-width: 100%;
+        color: #4a6080;
+        font: 900 15px var(--font-display);
+        letter-spacing: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .quick-layout-toggle {
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid rgba(74, 96, 128, 0.72);
+        border-radius: 0;
+        background: rgba(13, 21, 37, 0.82);
+        color: #8aa2c0;
+        font: 700 12px var(--font-mono);
+        white-space: nowrap;
+      }
+
+      .quick-layout-toggle:hover,
+      .quick-layout-toggle:focus,
+      .quick-layout-toggle:active {
+        border-color: rgba(74, 96, 128, 0.92);
+        background: rgba(13, 21, 37, 0.9);
+        color: #c8d8e8;
+        outline: none;
+      }
+
+      .settings-gear {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        min-height: 38px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #c8d8e8;
+        font-size: 29px;
+        line-height: 1;
+        filter: drop-shadow(0 0 9px rgba(200, 216, 232, 0.6));
+      }
+
+      .settings-gear:hover,
+      .settings-gear:focus,
+      .settings-gear:active,
+      .settings-gear.active {
+        border: 0;
+        background: transparent;
+        color: #f8fbff;
+        outline: none;
+        box-shadow: none;
+        filter:
+          drop-shadow(0 0 9px rgba(200, 216, 232, 0.74))
+          drop-shadow(0 0 14px rgba(0, 245, 255, 0.18));
+      }
+
+      body.is-player-active .control-options,
+      body:has(#gamePanel:not([hidden])) .control-options {
+        position: absolute;
+        z-index: 18;
+        right: 10px;
+        bottom: calc(clamp(218px, 30dvh, 286px) + 82px);
+        display: none;
+        width: min(360px, calc(100% - 20px));
+        padding: 10px;
+        border: 1px solid rgba(0, 245, 255, 0.22);
+        border-radius: 2px;
+        background: rgba(7, 11, 20, 0.94);
+        box-shadow:
+          0 0 26px rgba(0, 245, 255, 0.12),
+          inset 0 0 18px rgba(0, 245, 255, 0.05);
+      }
+
+      body.is-player-active.is-controller-settings-open .control-options,
+      body.is-controller-settings-open:has(#gamePanel:not([hidden])) .control-options {
+        display: flex;
+      }
+
+      body.is-player-active .control-options .layout-switch,
+      body:has(#gamePanel:not([hidden])) .control-options .layout-switch {
+        border-radius: 2px;
+        background: rgba(13, 21, 37, 0.92);
+      }
+
+      body.is-player-active .control-options .layout-option,
+      body.is-player-active .control-options .control-action,
+      body:has(#gamePanel:not([hidden])) .control-options .layout-option,
+      body:has(#gamePanel:not([hidden])) .control-options .control-action {
+        border-radius: 2px;
+        font-family: var(--font-mono);
+      }
+
+      body.is-player-active .control-deck,
+      body:has(#gamePanel:not([hidden])) .control-deck {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) clamp(104px, 25%, 140px);
+        align-items: stretch;
+        gap: 14px;
+        height: 100%;
+        min-height: 0;
+        padding: 14px max(24px, env(safe-area-inset-right)) 18px max(24px, env(safe-area-inset-left));
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        border: 0;
+        border-radius: 0;
+        background:
+          linear-gradient(180deg, rgba(7, 11, 20, 0.98), rgba(5, 9, 20, 0.99)),
+          #070b14;
+        box-shadow: none;
+        overflow: hidden;
+      }
+
+      body.is-player-active .control-deck.is-lefty,
+      body:has(#gamePanel:not([hidden])) .control-deck.is-lefty {
+        grid-template-columns: clamp(104px, 25%, 140px) minmax(0, 1fr);
+      }
+
+      body.is-player-active .control-deck.is-customizing,
+      body.is-player-active .control-deck.has-custom-offset,
+      body:has(#gamePanel:not([hidden])) .control-deck.is-customizing,
+      body:has(#gamePanel:not([hidden])) .control-deck.has-custom-offset {
+        display: grid;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      body.is-player-active .control-deck.is-customizing .move-unit,
+      body.is-player-active .control-deck.has-custom-offset .move-unit,
+      body.is-player-active .control-deck.is-customizing .fire-unit,
+      body.is-player-active .control-deck.has-custom-offset .fire-unit,
+      body:has(#gamePanel:not([hidden])) .control-deck.is-customizing .move-unit,
+      body:has(#gamePanel:not([hidden])) .control-deck.has-custom-offset .move-unit,
+      body:has(#gamePanel:not([hidden])) .control-deck.is-customizing .fire-unit,
+      body:has(#gamePanel:not([hidden])) .control-deck.has-custom-offset .fire-unit {
+        position: relative;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        width: auto;
+        height: auto;
+        min-height: 0;
+      }
+
+      body.is-player-active .control-deck::before,
+      body.is-player-active .control-deck::after,
+      body:has(#gamePanel:not([hidden])) .control-deck::before,
+      body:has(#gamePanel:not([hidden])) .control-deck::after {
+        top: 10px;
+        width: 54px;
+        background: linear-gradient(90deg, transparent, rgba(0, 245, 255, 0.75));
+      }
+
+      body.is-player-active .move-unit,
+      body.is-player-active .fire-unit,
+      body:has(#gamePanel:not([hidden])) .move-unit,
+      body:has(#gamePanel:not([hidden])) .fire-unit {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        transform-origin: center center;
+      }
+
+      body.is-player-active .joystick,
+      body:has(#gamePanel:not([hidden])) .joystick {
+        width: 100%;
+        max-width: 100%;
+        min-height: 0;
+        height: 100%;
+        max-height: 100%;
+        border: 0;
+        border-radius: 0;
+        background:
+          radial-gradient(circle at 50% 52%, rgba(0, 128, 255, 0.18), transparent 38%),
+          linear-gradient(145deg, rgba(7, 11, 20, 0.96), rgba(5, 9, 20, 0.98));
+        box-shadow: none;
+      }
+
+      body.is-player-active .joystick::before,
+      body:has(#gamePanel:not([hidden])) .joystick::before {
+        display: none;
+      }
+
+      body.is-player-active .joystick-base,
+      body:has(#gamePanel:not([hidden])) .joystick-base {
+        width: min(88%, 220px);
+        border: 2px solid rgba(47, 127, 255, 0.22);
+        background:
+          radial-gradient(circle at 50% 50%, rgba(47, 127, 255, 0.96) 0 15%, rgba(47, 127, 255, 0.68) 16% 29%, rgba(10, 20, 42, 0.95) 30% 44%, rgba(4, 8, 18, 0.96) 45% 100%);
+        box-shadow:
+          inset 0 0 40px rgba(47, 127, 255, 0.2),
+          0 0 38px rgba(47, 127, 255, 0.18);
+      }
+
+      body.is-player-active .joystick-thumb,
+      body:has(#gamePanel:not([hidden])) .joystick-thumb {
+        border-color: rgba(140, 205, 255, 0.82);
+        background:
+          radial-gradient(circle at 50% 38%, #8fe8ff 0 16%, #3f92ff 17% 38%, #2d55bd 39% 100%);
+        box-shadow:
+          inset 0 0 18px rgba(255, 255, 255, 0.28),
+          0 0 28px rgba(47, 127, 255, 0.72);
+      }
+
+      body.is-player-active .control-btn.attack,
+      body:has(#gamePanel:not([hidden])) .control-btn.attack {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        max-height: 100%;
+        border: 3px solid #ff334d;
+        border-radius: 4px;
+        background:
+          radial-gradient(circle at 50% 35%, rgba(255, 51, 77, 0.38), transparent 38%),
+          linear-gradient(155deg, rgba(72, 0, 18, 0.98), rgba(20, 0, 8, 0.98));
+        color: #fff;
+        box-shadow:
+          0 0 28px rgba(255, 34, 68, 0.34),
+          inset 0 0 34px rgba(255, 34, 68, 0.12);
+      }
+
+      body.is-player-active .control-btn.attack::before,
+      body:has(#gamePanel:not([hidden])) .control-btn.attack::before {
+        border-color: rgba(255, 51, 77, 0.22);
+      }
+
+      body.is-player-active .control-btn.attack::after,
+      body:has(#gamePanel:not([hidden])) .control-btn.attack::after {
+        height: 4px;
+        background: #67e8f9;
+        box-shadow: 0 0 16px rgba(103, 232, 249, 0.68);
+      }
+
+      body.is-player-active .attack-mark,
+      body:has(#gamePanel:not([hidden])) .attack-mark {
+        width: 45px;
+        height: 45px;
+        border-color: rgba(255, 130, 140, 0.95);
+        box-shadow:
+          inset 0 0 20px rgba(255, 34, 68, 0.34),
+          0 0 24px rgba(255, 34, 68, 0.66);
+      }
+
+      body.is-player-active .attack-label strong,
+      body:has(#gamePanel:not([hidden])) .attack-label strong {
+        font-size: clamp(28px, 7.4vw, 40px);
+        letter-spacing: 1px;
+        color: #ffffff;
+        text-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
+      }
+
+      body.is-player-active .attack-label span,
+      body:has(#gamePanel:not([hidden])) .attack-label span {
+        color: #ffffff;
+        font: 900 14px var(--font-display);
+        letter-spacing: 2px;
+      }
+
+      @media (max-width: 390px) {
+        body.is-player-active #gamePanel .panel-body,
+        body:has(#gamePanel:not([hidden])) #gamePanel .panel-body {
+          grid-template-rows: minmax(0, 1fr) 70px 218px;
+        }
+
+        body.is-player-active .cockpit-strip,
+        body:has(#gamePanel:not([hidden])) .cockpit-strip {
+          grid-template-columns: 92px minmax(0, 1fr) 74px 34px;
+          gap: 6px;
+          padding: 8px 8px;
+        }
+
+        .team-badge {
+          min-height: 38px;
+          font-size: 16px;
+        }
+
+        .energy-bars {
+          gap: 3px;
+        }
+
+        .energy-bars span {
+          height: 22px;
+        }
+
+        .quick-layout-toggle {
+          max-width: 88px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      @media (max-width: 520px) {
+        html:has(body.is-player-active),
+        html:has(#gamePanel:not([hidden])) {
+          height: 100%;
+          overflow: hidden;
+        }
+
+        body.is-player-active,
+        body:has(#gamePanel:not([hidden])) {
+          height: 100svh;
+          min-height: 100svh;
+          max-height: 100svh;
+          overflow: hidden;
+        }
+
+        body.is-player-active .player-shell,
+        body:has(#gamePanel:not([hidden])) .player-shell,
+        body.is-player-active #gamePanel.panel,
+        body:has(#gamePanel:not([hidden])) #gamePanel.panel {
+          width: min(100vw, 430px);
+          height: 100svh;
+          min-height: 100svh;
+          max-height: 100svh;
+          overflow: hidden;
+        }
+
+        body.is-player-active #gamePanel .panel-body,
+        body:has(#gamePanel:not([hidden])) #gamePanel .panel-body {
+          --mobile-cockpit-height: clamp(58px, 7.8svh, 66px);
+          --mobile-control-height: clamp(218px, 29svh, 252px);
+          grid-template-rows:
+            minmax(0, calc(100svh - var(--mobile-cockpit-height) - var(--mobile-control-height)))
+            var(--mobile-cockpit-height)
+            var(--mobile-control-height);
+          height: 100svh;
+          max-height: 100svh;
+          overflow: hidden;
+        }
+
+        body.is-player-active #gamePanel .canvas-wrap.ratio-16-9,
+        body:has(#gamePanel:not([hidden])) #gamePanel .canvas-wrap.ratio-16-9 {
+          min-height: 0;
+          max-height: 100%;
+        }
+
+        body.is-player-active .cockpit-strip,
+        body:has(#gamePanel:not([hidden])) .cockpit-strip {
+          height: var(--mobile-cockpit-height);
+          min-height: 0;
+          grid-template-columns: minmax(74px, 0.76fr) minmax(0, 1fr) minmax(60px, 0.54fr) 34px;
+          gap: 6px;
+          padding: 6px 8px;
+        }
+
+        body.is-player-active .team-badge,
+        body:has(#gamePanel:not([hidden])) .team-badge {
+          min-height: 38px;
+          font-size: clamp(15px, 4.6vw, 22px);
+          letter-spacing: 1px;
+        }
+
+        body.is-player-active .energy-wrap,
+        body:has(#gamePanel:not([hidden])) .energy-wrap {
+          gap: 3px;
+        }
+
+        body.is-player-active .energy-head,
+        body:has(#gamePanel:not([hidden])) .energy-head {
+          font-size: 11px;
+          letter-spacing: 1px;
+        }
+
+        body.is-player-active .energy-bars,
+        body:has(#gamePanel:not([hidden])) .energy-bars {
+          gap: 3px;
+        }
+
+        body.is-player-active .energy-bars span,
+        body:has(#gamePanel:not([hidden])) .energy-bars span {
+          height: clamp(18px, 2.6svh, 22px);
+        }
+
+        body.is-player-active .pilot-summary,
+        body:has(#gamePanel:not([hidden])) .pilot-summary {
+          align-self: stretch;
+          align-content: center;
+          justify-items: end;
+          gap: 0;
+        }
+
+        body.is-player-active .pilot-summary .hp-mini,
+        body:has(#gamePanel:not([hidden])) .pilot-summary .hp-mini {
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        body.is-player-active .pilot-summary strong,
+        body:has(#gamePanel:not([hidden])) .pilot-summary strong {
+          font-size: clamp(12px, 3.4vw, 15px);
+          line-height: 1.05;
+          letter-spacing: 0;
+        }
+
+        body.is-player-active .quick-layout-toggle,
+        body:has(#gamePanel:not([hidden])) .quick-layout-toggle {
+          max-width: 72px;
+          min-height: 22px;
+          padding: 0 6px;
+          font-size: 10px;
+          line-height: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        body.is-player-active .settings-gear,
+        body:has(#gamePanel:not([hidden])) .settings-gear {
+          width: 34px;
+          height: 34px;
+          min-height: 34px;
+          font-size: 26px;
+        }
+
+        body.is-player-active .control-options,
+        body:has(#gamePanel:not([hidden])) .control-options {
+          right: 8px;
+          bottom: calc(var(--mobile-control-height) + var(--mobile-cockpit-height) + 6px);
+          width: min(340px, calc(100% - 16px));
+        }
+
+        body.is-player-active .control-deck,
+        body:has(#gamePanel:not([hidden])) .control-deck {
+          grid-template-columns: minmax(0, 1fr) clamp(98px, 28vw, 116px);
+          gap: 10px;
+          height: var(--mobile-control-height);
+          max-height: var(--mobile-control-height);
+          padding: 10px max(16px, env(safe-area-inset-right)) 14px max(16px, env(safe-area-inset-left));
+        }
+
+        body.is-player-active .control-deck.is-lefty,
+        body:has(#gamePanel:not([hidden])) .control-deck.is-lefty {
+          grid-template-columns: clamp(98px, 28vw, 116px) minmax(0, 1fr);
+        }
+
+        body.is-player-active .joystick-base,
+        body:has(#gamePanel:not([hidden])) .joystick-base {
+          width: min(88%, 190px);
+        }
+
+        body.is-player-active .control-btn.attack,
+        body:has(#gamePanel:not([hidden])) .control-btn.attack {
+          border-width: 2px;
+          border-radius: 3px;
+        }
+
+        body.is-player-active .attack-mark,
+        body:has(#gamePanel:not([hidden])) .attack-mark {
+          width: clamp(36px, 11vw, 45px);
+          height: clamp(36px, 11vw, 45px);
+        }
+
+        body.is-player-active .attack-label strong,
+        body:has(#gamePanel:not([hidden])) .attack-label strong {
+          font-size: clamp(28px, 7.4vw, 36px);
+          letter-spacing: 1px;
+        }
+      }
+
+      @media (max-width: 380px) and (max-height: 760px) {
+        body.is-player-active #gamePanel .panel-body,
+        body:has(#gamePanel:not([hidden])) #gamePanel .panel-body {
+          --mobile-cockpit-height: 56px;
+          --mobile-control-height: 210px;
+        }
+
+        body.is-player-active .team-badge,
+        body:has(#gamePanel:not([hidden])) .team-badge {
+          min-height: 34px;
+        }
+
+        body.is-player-active .quick-layout-toggle,
+        body:has(#gamePanel:not([hidden])) .quick-layout-toggle {
+          max-width: 64px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="player-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark" aria-hidden="true"></div>
+          <div>
+            <h1>玩家控制器</h1>
+            <p id="sessionLabel">等待加入</p>
+          </div>
+        </div>
+        <span class="status-pill" id="socketStatus"><span class="dot"></span><span>連線中</span></span>
+      </header>
+
+      <section class="panel" id="joinPanel">
+        <div class="panel-header">
+          <h2>加入遊戲</h2>
+        </div>
+        <div class="panel-body player-card">
+          <label>
+            <span class="muted">暱稱</span>
+            <input id="nameInput" maxlength="16" autocomplete="nickname" placeholder="輸入暱稱">
+          </label>
+          <button class="primary" id="joinBtn">加入</button>
+          <div class="join-status" id="joinNotice" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel" id="gamePanel" hidden>
+        <div class="panel-header">
+          <h2 id="playerTitle">已加入</h2>
+          <span class="status-pill" id="rolePill"><span class="dot ok"></span><span>player</span></span>
+        </div>
+        <div class="panel-body player-card">
+          <div class="canvas-wrap ratio-16-9">
+            <canvas id="gameCanvas"></canvas>
+          </div>
+          <div class="small-stats">
+            <div class="stat"><span class="muted">隊伍</span><strong id="teamStat">-</strong></div>
+            <div class="stat"><span class="muted">HP</span><strong id="hpStat">-</strong></div>
+            <div class="stat"><span class="muted">狀態</span><strong id="stateStat">-</strong></div>
+            <div class="stat"><span class="muted">稱號</span><strong id="titleStat">-</strong></div>
+          </div>
+          <div class="cockpit-strip" aria-label="battle profile status">
+            <div class="team-badge" id="teamBadge">BLUE</div>
+            <div class="energy-wrap">
+              <div class="energy-head">
+                <span>ENERGY</span>
+                <span class="energy-value" id="energyValue">100</span>
+              </div>
+              <div class="energy-bars" id="energyBars" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+            <div class="pilot-summary">
+              <span class="hp-mini" id="pilotHpMini">100</span>
+              <strong id="pilotTitleMini">ROOKIE</strong>
+              <button type="button" class="quick-layout-toggle" id="quickLayoutToggle">← 切換左手</button>
+            </div>
+            <button type="button" class="settings-gear" id="settingsToggle" aria-label="控制器設定" aria-expanded="false">⚙</button>
+          </div>
+          <div class="control-options">
+            <div class="layout-switch" aria-label="慣用手">
+              <button type="button" class="layout-option" data-layout="right" aria-pressed="true">右手</button>
+              <button type="button" class="layout-option" data-layout="left" aria-pressed="false">左手</button>
+            </div>
+            <div class="layout-switch" aria-label="控制器大小">
+              <button type="button" class="layout-option" data-control-size="compact" aria-pressed="false">小</button>
+              <button type="button" class="layout-option" data-control-size="standard" aria-pressed="true">中</button>
+              <button type="button" class="layout-option" data-control-size="large" aria-pressed="false">大</button>
+            </div>
+            <button type="button" class="control-action" id="customizeControlsBtn" aria-pressed="false">位置</button>
+            <button type="button" class="control-action" id="resetControlsBtn">歸零</button>
+          </div>
+          <div class="control-deck" id="controlDeck" aria-label="player controls">
+            <div class="control-unit move-unit" data-control-part="move" aria-label="搖桿位置">
+              <span class="drag-grip" aria-hidden="true"></span>
+              <div class="joystick" id="moveJoystick" aria-label="移動搖桿">
+                <div class="joystick-base">
+                  <span class="joystick-axis x" aria-hidden="true"></span>
+                  <span class="joystick-axis y" aria-hidden="true"></span>
+                  <span class="joystick-thumb" id="joystickThumb" aria-hidden="true"></span>
+                </div>
+              </div>
+            </div>
+            <div class="control-unit fire-unit" data-control-part="fire" aria-label="攻擊位置">
+              <span class="drag-grip" aria-hidden="true"></span>
+              <button class="control-btn attack" data-key="attack" aria-label="攻擊">
+                <span class="attack-mark" aria-hidden="true"></span>
+                <span class="attack-label"><strong>攻擊</strong><span>FIRE</span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/player.js"></script>
+  </body>
+</html>
