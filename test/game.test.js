@@ -28,6 +28,15 @@ test("players join a session and are assigned teams", () => {
   );
 });
 
+test("latestPublicSession returns the newest session for fixed Studio source", () => {
+  const world = new GameWorld(() => 1_000);
+  const first = world.createSession("First");
+  const second = world.createSession("Second");
+
+  assert.equal(world.latestPublicSession().id, second.id);
+  assert.notEqual(world.latestPublicSession().id, first.id);
+});
+
 test("room queues player over max capacity", () => {
   let now = 1_000;
   const world = new GameWorld(() => now);

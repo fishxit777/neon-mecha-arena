@@ -310,7 +310,7 @@ function getStudioUrl(session) {
 function normalizedSessionUrls(session) {
   const player = normalizeUrlToCurrentOrigin(session?.urls?.player || "");
   const spectator = normalizeUrlToCurrentOrigin(session?.urls?.spectator || "");
-  const studio = spectator ? `${spectator}${spectator.includes("?") ? "&" : "?"}studio=1` : "";
+  const studio = session ? normalizeUrlToCurrentOrigin(session?.urls?.studio || `${window.location.origin}/studio`) : "";
   const qr = player ? `${window.location.origin}/qr.svg?text=${encodeURIComponent(player)}` : "";
   return { player, spectator, studio, qr };
 }
@@ -333,7 +333,11 @@ function normalizeUrlToCurrentOrigin(value) {
 
 function shouldRebaseToCurrentOrigin(url, current) {
   if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-  const appPath = url.pathname.startsWith("/join/") || url.pathname.startsWith("/watch/") || url.pathname.startsWith("/qr.svg");
+  const appPath =
+    url.pathname.startsWith("/join/") ||
+    url.pathname.startsWith("/watch/") ||
+    url.pathname.startsWith("/qr.svg") ||
+    url.pathname === "/studio";
   if (!appPath) return false;
   return url.port === current.port || isPrivateOrLocalHost(url.hostname) || isPrivateOrLocalHost(current.hostname);
 }

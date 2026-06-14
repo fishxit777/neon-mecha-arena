@@ -55,6 +55,38 @@ app.get("/watch/:sessionId", (_req, res) => {
   res.sendFile(path.join(publicDir, "spectator.html"));
 });
 
+app.get("/studio", (_req, res) => {
+  const session = world.latestPublicSession();
+  if (!session) {
+    return res.status(200).type("html").send(`<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEON MECHA ARENA Studio</title>
+  <style>
+    html,body{height:100%;margin:0;background:#020711;color:#e5f7ff;font-family:"Microsoft JhengHei","Segoe UI",Arial,sans-serif}
+    main{min-height:100%;display:grid;place-items:center;text-align:center;padding:24px;box-sizing:border-box}
+    section{border:1px solid rgba(96,221,255,.35);background:rgba(3,10,24,.88);box-shadow:0 0 36px rgba(56,189,248,.18);padding:28px;max-width:520px}
+    strong{display:block;color:#67e8f9;letter-spacing:.24em;margin-bottom:14px}
+    h1{margin:0 0 12px;font-size:28px}
+    p{margin:0;color:#a9b8cc;line-height:1.7}
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <strong>NMA</strong>
+      <h1>尚未建立場次</h1>
+      <p>請先到控制台建立 Session，這個固定直播來源會自動切到最新場次。</p>
+    </section>
+  </main>
+</body>
+</html>`);
+  }
+  return res.redirect(302, `/watch/${session.id}?studio=1`);
+});
+
 app.get("/qr.svg", async (req, res) => {
   const text = String(req.query.text || "").slice(0, 500);
   if (!text) return res.status(400).type("text/plain").send("missing text");
@@ -212,6 +244,7 @@ function enrichSession(session, reqOrigin) {
     urls: {
       player: publicUrl(reqOrigin, `/join/${session.id}`),
       spectator: publicUrl(reqOrigin, `/watch/${session.id}`),
+      studio: publicUrl(reqOrigin, "/studio"),
       qr: publicUrl(reqOrigin, `/qr.svg?text=${encodeURIComponent(publicUrl(reqOrigin, `/join/${session.id}`))}`)
     }
   };

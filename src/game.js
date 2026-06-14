@@ -258,6 +258,15 @@ export class GameWorld {
     return this.sessions.get(id) || null;
   }
 
+  latestSession() {
+    return [...this.sessions.values()].at(-1) || null;
+  }
+
+  latestPublicSession() {
+    const session = this.latestSession();
+    return session ? this.getPublicSession(session.id) : null;
+  }
+
   listSessions() {
     return [...this.sessions.keys()].map((id) => this.getPublicSession(id));
   }
