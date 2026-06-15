@@ -83,6 +83,61 @@
         box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.08);
       }
 
+      .scarcity-status {
+        min-height: 0;
+        padding: 10px 12px;
+        border: 1px solid rgba(251, 191, 36, 0.42);
+        border-left: 4px solid #fbbf24;
+        border-radius: 6px;
+        background:
+          linear-gradient(90deg, rgba(120, 53, 15, 0.24), rgba(15, 23, 42, 0.9));
+        color: #fde68a;
+        line-height: 1.5;
+      }
+
+      .intervention-panel {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid rgba(56, 189, 248, 0.36);
+        border-left: 4px solid #38bdf8;
+        border-radius: 6px;
+        background:
+          linear-gradient(90deg, rgba(14, 116, 144, 0.18), rgba(15, 23, 42, 0.92));
+        color: #dbeafe;
+      }
+
+      .intervention-panel[hidden] {
+        display: none;
+      }
+
+      .intervention-panel strong {
+        color: #f8fafc;
+      }
+
+      .intervention-status {
+        min-height: 20px;
+        color: #bfdbfe;
+        line-height: 1.45;
+      }
+
+      .intervention-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .intervention-actions button {
+        min-height: 42px;
+        padding: 0 8px;
+        border-radius: 6px;
+        font-weight: 800;
+      }
+
+      .intervention-actions button:disabled {
+        opacity: 0.52;
+      }
+
       .player-card {
         display: grid;
         gap: 14px;
@@ -612,6 +667,10 @@
 
         .small-stats {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .intervention-actions {
+          grid-template-columns: 1fr;
         }
 
         .control-deck {
@@ -1615,8 +1674,18 @@
             <span class="muted">暱稱</span>
             <input id="nameInput" maxlength="16" autocomplete="nickname" placeholder="輸入暱稱">
           </label>
+          <div class="scarcity-status" id="scarcityStatus">正在同步席位狀態...</div>
           <button class="primary" id="joinBtn">加入</button>
           <div class="join-status" id="joinNotice" hidden></div>
+          <section class="intervention-panel" id="interventionPanel" hidden aria-label="候補場外干預">
+            <strong>候補干預</strong>
+            <div class="intervention-status" id="interventionStatus">對戰開始後可支援場上戰局</div>
+            <div class="intervention-actions">
+              <button type="button" data-audience-event="shield_boost">弱隊護盾</button>
+              <button type="button" data-audience-event="supply_drop">補給投放</button>
+              <button type="button" data-audience-event="orbital_strike">軌道砲</button>
+            </div>
+          </section>
         </div>
       </section>
 

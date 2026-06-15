@@ -35,7 +35,7 @@ export function renderGame(canvas, state, options = {}) {
   drawDamageEvents(ctx, view, room.damageEvents || []);
   drawHud(ctx, size, room, options, topHudHeight);
 
-  if (options.showQr && options.qrImage?.complete) {
+  if (options.showQr && options.qrImage?.complete && options.qrImage.naturalWidth > 0) {
     drawQr(ctx, size, options.qrImage, options.playerUrl);
   }
 
@@ -43,7 +43,7 @@ export function renderGame(canvas, state, options = {}) {
     if (room.status === "finished") {
       drawVictoryOverlay(ctx, size, room);
     } else {
-      drawCentered(ctx, size, "等待開局", "掃描 QR code 加入遊戲", 0.66);
+      drawCentered(ctx, size, "等待開局", room.scarcity?.message || "掃描 QR code 加入遊戲", 0.66);
     }
   }
 
@@ -807,13 +807,31 @@ function drawHud(ctx, size, room, options, topHudHeight) {
   ctx.lineTo(mid, topHudHeight - 2);
   ctx.stroke();
 
+  drawScarcityHud(ctx, size, room, compact, topHudHeight);
+
   if (room.notice && room.status === "playing") {
     ctx.textAlign = "center";
     ctx.fillStyle = room.notice === "ARMOUR BREAK" ? "#FF8800" : "#4A6080";
     ctx.font = `${compact ? 12 : 14}px "Share Tech Mono", Consolas, monospace`;
-    ctx.fillText(room.notice, mid, topHudHeight - 18);
+    ctx.fillText(room.notice, mid, topHudHeight - 36);
   }
 
+  ctx.restore();
+}
+
+function drawScarcityHud(ctx, size, room, compact, topHudHeight) {
+  const scarcity = room.scarcity;
+  if (!scarcity) return;
+  const fill = scarcity.pressure === "sold_out" ? "#FFB700" : scarcity.pressure === "last_call" ? "#FF8800" : "#00F5FF";
+  const text = `${scarcity.scarcityLabel || `${scarcity.seatLimit} 席限量`} · 上場 ${scarcity.activePlayers}/${scarcity.seatLimit} · 剩 ${scarcity.openSlots} · 候補 ${scarcity.queuedPlayers}`;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = fill;
+  ctx.shadowColor = fill;
+  ctx.shadowBlur = 10;
+  ctx.font = `800 ${compact ? 12 : 14}px "Share Tech Mono", "Microsoft JhengHei", monospace`;
+  ctx.fillText(text, size.width / 2, topHudHeight - 17);
   ctx.restore();
 }
 
@@ -916,7 +934,7 @@ function drawQr(ctx, size, image, playerUrl) {
   ctx.fillStyle = "#0A0C10";
   ctx.font = "700 14px Microsoft JhengHei, Arial";
   ctx.textAlign = "center";
-  ctx.fillText("掃碼加入", x + qrSize / 2, y + qrSize + 27);
+  ctx.fillText("掃碼搶位", x + qrSize / 2, y + qrSize + 27);
   if (playerUrl) {
     const parts = shortUrlParts(playerUrl);
     ctx.font = "10px Consolas, monospace";

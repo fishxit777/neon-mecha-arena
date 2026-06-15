@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanNickname, GAME, GameWorld } from "../src/game.js";
+import { cleanNickname, ENTRY_MODES, GAME, GameWorld } from "../src/game.js";
 
 test("cleanNickname trims unsafe names and banned words", () => {
   assert.equal(cleanNickname("  Bao  "), "Bao");
@@ -37,19 +37,126 @@ test("latestPublicSession returns the newest session for fixed Studio source", (
   assert.notEqual(world.latestPublicSession().id, first.id);
 });
 
-test("room queues player over max capacity", () => {
+test("room queues player over current scarcity seat limit", () => {
   let now = 1_000;
   const world = new GameWorld(() => now);
   const session = world.createSession("Capacity");
+  const seatLimit = ENTRY_MODES.standard_squad.seatLimit;
 
-  for (let i = 0; i < GAME.maxPlayers + 1; i += 1) {
+  for (let i = 0; i < seatLimit + 1; i += 1) {
     now += 10;
     world.joinSession({ sessionId: session.id, socketId: `s${i}`, name: `P${i}` });
   }
 
   const publicSession = world.getPublicSession(session.id);
-  assert.equal(publicSession.room.players.length, GAME.maxPlayers);
+  assert.equal(publicSession.room.players.length, seatLimit);
   assert.equal(publicSession.room.queue.length, 1);
+  assert.equal(publicSession.metrics.maxPlayers, seatLimit);
+  assert.equal(publicSession.room.scarcity.pressure, "sold_out");
+});
+
+test("admin can switch scarcity seat mode and demote overflow into queue", () => {
+  let now = 1_000;
+  const world = new GameWorld(() => now);
+  const session = world.createSession("Mode Switch");
+
+  for (let i = 0; i < ENTRY_MODES.standard_squad.seatLimit; i += 1) {
+    now += 10;
+    world.joinSession({ sessionId: session.id, socketId: `s${i}`, name: `P${i}` });
+  }
+
+  const changed = world.setEntryMode(session.id, "spotlight_duel");
+  const publicSession = world.getPublicSession(session.id);
+
+  assert.equal(changed.ok, true);
+  assert.equal(publicSession.room.entryMode, "spotlight_duel");
+  assert.equal(publicSession.room.players.length, ENTRY_MODES.spotlight_duel.seatLimit);
+  assert.equal(publicSession.room.queue.length, ENTRY_MODES.standard_squad.seatLimit - ENTRY_MODES.spotlight_duel.seatLimit);
+  assert.equal(publicSession.room.scarcity.seatLimit, 2);
+});
+
+test("queued player is promoted into an open seat on next waiting round", () => {
+  let now = 1_000;
+  const world = new GameWorld(() => now);
+  const session = world.createSession("Queue Promote");
+  world.setEntryMode(session.id, "spotlight_duel");
+  const p1 = world.joinSession({ sessionId: session.id, socketId: "s1", name: "One" });
+  world.joinSession({ sessionId: session.id, socketId: "s2", name: "Two" });
+  const queued = world.joinSession({ sessionId: session.id, socketId: "s3", name: "Three" });
+
+  assert.equal(queued.role, "queued");
+  assert.equal(world.startRound(session.id).ok, true);
+  world.disconnect("s1");
+  const reset = world.resetRoom(session.id, false, "nextRounds");
+  const publicSession = world.getPublicSession(session.id);
+
+  assert.equal(reset.ok, true);
+  assert.equal(publicSession.room.players.length, 2);
+  assert.equal(publicSession.room.players.some((player) => player.id === queued.playerId), true);
+  assert.equal(publicSession.room.players.some((player) => player.id === p1.playerId), false);
+  assert.equal(publicSession.room.queue.length, 0);
+  assert.equal(publicSession.room.analytics.funnel.promotedFromQueue, 1);
+});
+
+test("queued and spectator clients can trigger limited audience interventions", () => {
+  let now = 1_000;
+  const world = new GameWorld(() => now);
+  const session = world.createSession("Audience Events");
+  world.setEntryMode(session.id, "spotlight_duel");
+  const p1 = world.joinSession({ sessionId: session.id, socketId: "s1", name: "One" });
+  world.joinSession({ sessionId: session.id, socketId: "s2", name: "Two" });
+  const queued = world.joinSession({ sessionId: session.id, socketId: "s3", name: "Three" });
+  world.joinSession({ sessionId: session.id, socketId: "obs", clientType: "spectator" });
+  assert.equal(queued.role, "queued");
+  assert.equal(world.startRound(session.id).ok, true);
+
+  const activeRejected = world.triggerAudienceIntervention("s1", {
+    sessionId: session.id,
+    eventType: "shield_boost"
+  });
+  assert.equal(activeRejected.ok, false);
+  assert.equal(activeRejected.code, "AUDIENCE_ONLY");
+
+  const queuedEvent = world.triggerAudienceIntervention("s3", {
+    sessionId: session.id,
+    eventType: "shield_boost"
+  });
+  assert.equal(queuedEvent.ok, true);
+  assert.equal(queuedEvent.event.details.requestedBy, "audience");
+  assert.equal(queuedEvent.event.details.actorRole, "queued");
+  assert.equal(world.getPublicSession(session.id).room.analytics.controls.audienceBattleEvents, 1);
+
+  const cooldown = world.triggerAudienceIntervention("s3", {
+    sessionId: session.id,
+    eventType: "supply_drop"
+  });
+  assert.equal(cooldown.ok, false);
+  assert.equal(cooldown.code, "AUDIENCE_COOLDOWN");
+
+  now += 20_001;
+  const spectatorEvent = world.triggerAudienceIntervention("obs", {
+    sessionId: session.id,
+    eventType: "supply_drop"
+  });
+  assert.equal(spectatorEvent.ok, true);
+  assert.equal(spectatorEvent.event.details.actorRole, "spectator");
+
+  now += 20_001;
+  for (let i = 0; i < 4; i += 1) {
+    const eventType = i % 2 === 0 ? "shield_boost" : "supply_drop";
+    const result = world.triggerAudienceIntervention("obs", { sessionId: session.id, eventType });
+    assert.equal(result.ok, true);
+    now += 20_001;
+  }
+  const limited = world.triggerAudienceIntervention("obs", {
+    sessionId: session.id,
+    eventType: "shield_boost"
+  });
+  assert.equal(limited.ok, false);
+  assert.equal(limited.code, "AUDIENCE_ROUND_LIMIT");
+  assert.equal(world.getPublicSession(session.id).room.audienceInterventions.remaining, 0);
+  assert.equal(world.getPublicSession(session.id).room.timeline.some((event) => event.details?.details?.source === "audience_intervention"), true);
+  assert.equal(p1.ok, true);
 });
 
 test("start round explains why a second player is required", () => {

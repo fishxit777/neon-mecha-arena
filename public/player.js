@@ -40,7 +40,12 @@ const state = {
   lastInputSentAt: 0,
   inputTimer: null,
   audioSnapshot: null,
+  session: null,
   game: null,
+  intervention: {
+    actorReadyAt: 0,
+    message: ""
+  },
   input: {
     up: false,
     down: false,
@@ -61,6 +66,10 @@ const els = {
   nameInput: document.querySelector("#nameInput"),
   joinBtn: document.querySelector("#joinBtn"),
   joinNotice: document.querySelector("#joinNotice"),
+  scarcityStatus: document.querySelector("#scarcityStatus"),
+  interventionPanel: document.querySelector("#interventionPanel"),
+  interventionStatus: document.querySelector("#interventionStatus"),
+  interventionButtons: Array.from(document.querySelectorAll("[data-audience-event]")),
   sessionLabel: document.querySelector("#sessionLabel"),
   playerTitle: document.querySelector("#playerTitle"),
   rolePill: document.querySelector("#rolePill span:last-child"),
@@ -104,14 +113,19 @@ socket.on("latency_probe", (payload = {}) => {
 });
 
 socket.on("lobby_state", (session) => {
+  state.session = session;
   els.sessionLabel.textContent = session?.label || sessionId;
+  renderJoinScarcity(session?.room);
 });
 
 socket.on("game_state", (gameState) => {
   processAudioCues(state.audioSnapshot, gameState);
   state.audioSnapshot = createAudioSnapshot(gameState);
   state.game = gameState;
+  syncQueuedPromotion(gameState?.room);
   updateStats();
+  renderJoinScarcity(gameState?.room);
+  renderAudienceInterventions();
   render();
 });
 
@@ -119,6 +133,10 @@ els.joinBtn.addEventListener("click", join);
 els.nameInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") join();
 });
+
+for (const button of els.interventionButtons) {
+  button.addEventListener("click", () => triggerAudienceIntervention(button.dataset.audienceEvent));
+}
 
 for (const button of document.querySelectorAll("[data-key]")) {
   const key = button.dataset.key;
@@ -230,6 +248,7 @@ window.addEventListener("keyup", (event) => {
 setInterval(() => {
   if (state.joined) sendInput();
 }, 110);
+setInterval(renderAudienceInterventions, 250);
 
 function join() {
   resumeAudio();
@@ -252,19 +271,16 @@ function join() {
       }
       state.joined = true;
       state.playerId = result.playerId;
+      state.session = result.session || state.session;
       state.pilotId = result.session?.room?.players?.find((player) => player.id === result.playerId)?.pilotId || state.pilotId;
       localStorage.setItem("tiktokPvpPilotId", state.pilotId);
       state.role = result.role;
-      els.joinPanel.hidden = true;
-      els.joinNotice.hidden = true;
-      els.gamePanel.hidden = false;
-      document.body.classList.add("is-player-active");
-      setControllerSettingsOpen(false);
-      scheduleControlBoundsCheck();
-      els.playerTitle.textContent = name;
-      els.rolePill.textContent = result.role;
       els.sessionLabel.textContent = result.session?.label || sessionId;
-      if (result.session?.room?.status === "playing") startBGM();
+      if (result.role === "queued") {
+        setQueuedView(result.message, result.session?.room);
+        return;
+      }
+      activatePlayerView(name, result.role, result.session?.room);
     }
   );
 }
@@ -292,7 +308,8 @@ function updateStats() {
   if (!player) {
     els.teamStat.textContent = state.role === "queued" ? "排隊" : "-";
     els.hpStat.textContent = "-";
-    els.stateStat.textContent = room?.status || "-";
+    const queued = room?.queue?.find((item) => item.id === state.playerId);
+    els.stateStat.textContent = queued ? `候補 #${queued.position || "-"}` : room?.status || "-";
     els.titleStat.textContent = "-";
     syncCockpitStrip(null, room);
     return;
@@ -338,6 +355,115 @@ function syncCockpitStrip(player, room) {
   });
 
   document.body.classList.toggle("is-round-finished", room?.status === "finished");
+}
+
+function setQueuedView(message, room) {
+  els.joinPanel.hidden = false;
+  els.gamePanel.hidden = true;
+  els.joinBtn.disabled = true;
+  els.joinBtn.textContent = "候補中";
+  els.nameInput.disabled = true;
+  els.joinNotice.hidden = false;
+  els.joinNotice.textContent = message || room?.scarcity?.message || "已進入候補，下一個空位會自動補上。";
+  if (els.interventionPanel) els.interventionPanel.hidden = false;
+  document.body.classList.remove("is-player-active");
+  renderJoinScarcity(room);
+  renderAudienceInterventions();
+}
+
+function activatePlayerView(name, role = "player", room = null) {
+  els.joinPanel.hidden = true;
+  els.joinNotice.hidden = true;
+  els.gamePanel.hidden = false;
+  els.joinBtn.disabled = false;
+  els.joinBtn.textContent = "加入";
+  els.nameInput.disabled = false;
+  if (els.interventionPanel) els.interventionPanel.hidden = true;
+  document.body.classList.add("is-player-active");
+  setControllerSettingsOpen(false);
+  scheduleControlBoundsCheck();
+  els.playerTitle.textContent = name;
+  els.rolePill.textContent = role;
+  if (room?.status === "playing") startBGM();
+}
+
+function syncQueuedPromotion(room) {
+  if (!state.joined || state.role !== "queued" || !state.playerId || !room) return;
+  const player = room.players?.find((item) => item.id === state.playerId);
+  if (!player) return;
+  state.role = "player";
+  state.pilotId = player.pilotId || state.pilotId;
+  localStorage.setItem("tiktokPvpPilotId", state.pilotId);
+  activatePlayerView(player.name, "player", room);
+}
+
+function renderJoinScarcity(room) {
+  if (!els.scarcityStatus) return;
+  const scarcity = room?.scarcity;
+  if (!scarcity) {
+    els.scarcityStatus.textContent = "正在同步席位狀態...";
+    return;
+  }
+  const queued = room.queue?.find((item) => item.id === state.playerId);
+  const queueText = queued ? ` · 你的候補序號 #${queued.position || "-"}` : "";
+  els.scarcityStatus.innerHTML = `
+    <strong>${scarcity.scarcityLabel || `${scarcity.seatLimit} 席限量`}</strong><br>
+    <span>${scarcity.message}${queueText}</span><br>
+    <span class="muted">上場 ${scarcity.activePlayers}/${scarcity.seatLimit} · 剩 ${scarcity.openSlots} 席 · 候補 ${scarcity.queuedPlayers} 人</span>
+  `;
+}
+
+function triggerAudienceIntervention(eventType) {
+  if (!eventType || state.role !== "queued") return;
+  socket.emit("audience_intervention", { sessionId, eventType }, (result) => {
+    if (result?.session) {
+      state.session = result.session;
+    }
+    if (result?.ok) {
+      state.intervention.actorReadyAt = result.actorReadyAt || Date.now() + (result.intervention?.actorCooldownMs || 20_000);
+      state.intervention.message = `${result.event?.title || "候補事件"} 已送出`;
+    } else {
+      if (result?.actorReadyAt) state.intervention.actorReadyAt = result.actorReadyAt;
+      state.intervention.message = result?.message || "候補干預暫時無法送出";
+    }
+    renderAudienceInterventions();
+  });
+}
+
+function renderAudienceInterventions() {
+  if (!els.interventionPanel || !els.interventionStatus) return;
+  const isQueued = state.joined && state.role === "queued";
+  els.interventionPanel.hidden = !isQueued;
+  if (!isQueued) return;
+
+  const room = state.game?.room || state.session?.room;
+  const interventions = room?.audienceInterventions;
+  const now = Date.now();
+  const actorRemaining = Math.max(0, (state.intervention.actorReadyAt || 0) - now);
+  const remaining = interventions?.remaining ?? 0;
+  const isPlaying = room?.status === "playing";
+
+  for (const button of els.interventionButtons) {
+    const option = interventions?.options?.find((item) => item.eventType === button.dataset.audienceEvent);
+    const typeRemaining = Math.max(0, (option?.readyAt || 0) - now);
+    button.disabled = !isPlaying || remaining <= 0 || actorRemaining > 0 || typeRemaining > 0;
+    button.textContent = option?.label || button.textContent;
+    if (typeRemaining > 0) button.textContent = `${option?.label || "事件"} ${Math.ceil(typeRemaining / 1000)}s`;
+  }
+
+  if (!isPlaying) {
+    els.interventionStatus.textContent = "你已在候補席，對戰開始後可免費干預一次戰局節奏。";
+    return;
+  }
+  if (remaining <= 0) {
+    els.interventionStatus.textContent = "本局觀眾事件權已用完，下一局重置。";
+    return;
+  }
+  if (actorRemaining > 0) {
+    els.interventionStatus.textContent = `個人冷卻 ${Math.ceil(actorRemaining / 1000)}s · 本局剩 ${remaining}/${interventions.roundLimit}`;
+    return;
+  }
+  els.interventionStatus.textContent = `${state.intervention.message || "候補可觸發場外事件"} · 本局剩 ${remaining}/${interventions?.roundLimit || 0}`;
 }
 
 function processAudioCues(previous, gameState) {

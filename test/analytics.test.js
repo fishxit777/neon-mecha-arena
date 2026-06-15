@@ -7,6 +7,7 @@ test("admin analytics covers live counts, queue, spectator, teams, latency, funn
   let now = 1_000;
   const world = new GameWorld(() => now);
   const session = world.createSession("Analytics");
+  world.setEntryMode(session.id, "full_arena");
 
   world.recordJoinPageView(session.id, "visitor_1");
   for (let index = 0; index < GAME.maxPlayers + 1; index += 1) {
@@ -35,6 +36,9 @@ test("admin analytics covers live counts, queue, spectator, teams, latency, funn
   assert.equal(analytics.funnel.joinPageViews, 1);
   assert.equal(analytics.funnel.successfulJoins, GAME.maxPlayers);
   assert.equal(analytics.funnel.queuedJoins, 1);
+  assert.equal(analytics.funnel.promotedFromQueue, 1);
+  assert.equal(analytics.funnel.admissionRate, 100);
+  assert.equal(analytics.scarcity.seatLimit, GAME.maxPlayers);
   assert.equal(analytics.spectators.online, true);
   assert.equal(analytics.teams.players.red + analytics.teams.players.blue, GAME.maxPlayers);
   assert.equal(analytics.latency.averageMs, 55);
@@ -42,6 +46,7 @@ test("admin analytics covers live counts, queue, spectator, teams, latency, funn
   assert.equal(analytics.controls.unlocks, 1);
   assert.equal(analytics.controls.kicks, 1);
   assert.equal(analytics.controls.resets, 1);
+  assert.equal(analytics.controls.entryModeChanges, 1);
   assert.equal(analytics.errors.at(-1).code, "QA_ERROR");
   assert.equal(analytics.activityPeak.total > 0, true);
 });

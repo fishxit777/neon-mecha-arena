@@ -7,9 +7,9 @@ import { Server } from "socket.io";
 import { assetBundleToText, buildAssetBundle } from "./assets.js";
 import { BATTLE_EVENT_TYPES } from "./battleEvents.js";
 import { DIRECTOR_SIGNAL_TYPES } from "./director.js";
-import { GAME, GameWorld } from "./game.js";
+import { AUDIENCE_INTERVENTIONS, ENTRY_MODES, GAME, GameWorld } from "./game.js";
 import { sessionExportToCsv } from "./metrics.js";
-import { isLoopbackHost, isOriginAllowed, isOriginAllowedForHost, loadConfig, requireAdminToken } from "./config.js";
+import { isLoopbackHost, isOriginAllowed, isOriginAllowedForHost, isPrivateLanHost, loadConfig, requireAdminToken } from "./config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,6 +118,8 @@ app.get("/metrics", (_req, res) => {
     sessions: world.listSessions().map((session) => ({
       id: session.id,
       status: session.room.status,
+      entryMode: session.room.entryMode,
+      seatLimit: session.room.seatLimit,
       activePlayers: session.metrics.activePlayers,
       queuedPlayers: session.metrics.queuedPlayers,
       spectators: session.metrics.spectators,
@@ -224,6 +226,30 @@ function requestHostFrom(req) {
   return req.headers["x-forwarded-host"] || req.headers.host || "";
 }
 
+function normalizeRequestHost(host) {
+  return String(host || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+}
+
+function requestOriginFromHeaders(headers = {}) {
+  const explicitOrigin = String(headers.origin || "").trim();
+  if (explicitOrigin) return explicitOrigin;
+
+  const host = normalizeRequestHost(headers["x-forwarded-host"] || headers.host || "");
+  if (!host) return `http://localhost:${config.port}`;
+  const hostname = host.split(":")[0];
+  const forwardedProto = String(headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  const proto =
+    forwardedProto ||
+    (isLoopbackHost(hostname) || isPrivateLanHost(hostname) ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 function readAssetBundle(req, res) {
   if (!requireAdminToken(readRequestToken(req), config)) {
     res.status(401).json({ ok: false, code: "BAD_TOKEN" });
@@ -244,7 +270,8 @@ function enrichSession(session, reqOrigin) {
     urls: {
       player: publicUrl(reqOrigin, `/join/${session.id}`),
       spectator: publicUrl(reqOrigin, `/watch/${session.id}`),
-      studio: publicUrl(reqOrigin, "/studio"),
+      studio: publicUrl(reqOrigin, `/watch/${session.id}?studio=1`),
+      latestStudio: publicUrl(reqOrigin, "/studio"),
       qr: publicUrl(reqOrigin, `/qr.svg?text=${encodeURIComponent(publicUrl(reqOrigin, `/join/${session.id}`))}`)
     }
   };
@@ -254,6 +281,8 @@ function adminState(reqOrigin) {
   return {
     sessions: world.listSessions().map((session) => enrichSession(session, reqOrigin)),
     game: GAME,
+    entryModes: Object.values(ENTRY_MODES),
+    audienceInterventions: Object.values(AUDIENCE_INTERVENTIONS),
     directorSignals: Object.keys(DIRECTOR_SIGNAL_TYPES),
     battleEvents: Object.keys(BATTLE_EVENT_TYPES)
   };
@@ -267,7 +296,7 @@ function emitSession(sessionId, reqOrigin) {
     sessionId,
     arena: { width: GAME.arenaWidth, height: GAME.arenaHeight },
     room: session.room,
-    game: GAME
+    game: session.game || GAME
   });
   emitAdmin(reqOrigin);
 }
@@ -283,7 +312,7 @@ function adminError(ack, code, message) {
 }
 
 io.on("connection", (socket) => {
-  const reqOrigin = socket.handshake.headers.origin || `http://localhost:${config.port}`;
+  const reqOrigin = requestOriginFromHeaders(socket.handshake.headers);
   rememberPublicOrigin(reqOrigin);
 
   socket.on("admin_auth", (payload = {}, ack) => {
@@ -320,10 +349,30 @@ io.on("connection", (socket) => {
     world.applyInput(socket.id, payload);
   });
 
+  socket.on("audience_intervention", (payload = {}, ack) => {
+    const result = world.triggerAudienceIntervention(socket.id, {
+      sessionId: payload.sessionId,
+      eventType: payload.eventType
+    });
+    if (result.session) result.session = enrichSession(result.session, reqOrigin);
+    if (payload.sessionId && !result.ok) {
+      world.recordSessionError(payload.sessionId, {
+        code: result.code || "AUDIENCE_INTERVENTION_FAILED",
+        message: result.message || result.code,
+        source: "audience_intervention",
+        socketId: socket.id
+      });
+    }
+    if (typeof ack === "function") ack(result);
+    if (payload.sessionId) emitSession(payload.sessionId, reqOrigin);
+    emitAdmin(reqOrigin);
+  });
+
   socket.on("join_page_view", (payload = {}) => {
     if (payload.sessionId) {
       socket.data.sessionId = payload.sessionId;
       world.recordJoinPageView(payload.sessionId, socket.id);
+      socket.join(`session:${payload.sessionId}`);
       emitSession(payload.sessionId, reqOrigin);
     }
   });
@@ -369,6 +418,9 @@ io.on("connection", (socket) => {
         break;
       case "set_bot_mode":
         result = world.setBotMode(payload.sessionId, payload.mode);
+        break;
+      case "set_entry_mode":
+        result = world.setEntryMode(payload.sessionId, payload.modeId);
         break;
       case "remove_bot_players":
         result = world.removeBotPlayers(payload.sessionId);

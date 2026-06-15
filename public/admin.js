@@ -7,6 +7,8 @@ const state = {
   token: TEST_ADMIN_TOKEN,
   selectedSessionId: localStorage.getItem("tiktokPvpSessionId") || "",
   sessions: [],
+  entryModes: [],
+  entryModeDrafts: {},
   battleEventTypes: []
 };
 
@@ -31,6 +33,7 @@ const els = {
   studioNotice: document.querySelector("#studioNotice"),
   sessionList: document.querySelector("#sessionList"),
   playersBody: document.querySelector("#playersBody"),
+  queueStatus: document.querySelector("#queueStatus"),
   roomStatus: document.querySelector("#roomStatus"),
   metrics: document.querySelector("#metrics"),
   qrPreview: document.querySelector("#qrPreview"),
@@ -41,6 +44,10 @@ const els = {
   botManualBtn: document.querySelector("#botManualBtn"),
   removeBotBtn: document.querySelector("#removeBotBtn"),
   botStatus: document.querySelector("#botStatus"),
+  entryModeSelect: document.querySelector("#entryModeSelect"),
+  entryModeApplyBtn: document.querySelector("#entryModeApplyBtn"),
+  scarcityMeter: document.querySelector("#scarcityMeter"),
+  scarcityStatus: document.querySelector("#scarcityStatus"),
   directorStatus: document.querySelector("#directorStatus"),
   directorSignal: document.querySelector("#directorSignal"),
   directorTimeline: document.querySelector("#directorTimeline"),
@@ -90,7 +97,9 @@ socket.on("latency_probe", (payload = {}) => {
 
 socket.on("admin_state", (adminState) => {
   state.sessions = adminState.sessions || [];
+  state.entryModes = adminState.entryModes || state.entryModes;
   state.battleEventTypes = adminState.battleEvents || state.battleEventTypes;
+  syncEntryModeDrafts();
   render();
 });
 
@@ -109,6 +118,11 @@ els.copyPlayerBtn.addEventListener("click", () => copySelectedUrl("player"));
 els.copySpectatorBtn.addEventListener("click", () => copySelectedUrl("spectator"));
 els.copyStudioBtn.addEventListener("click", () => copySelectedUrl("studio"));
 els.copyStudioGuideBtn.addEventListener("click", () => copyText(buildStudioGuideText(selectedSession()), "開播步驟"));
+els.entryModeApplyBtn?.addEventListener("click", applyEntryMode);
+els.entryModeSelect?.addEventListener("change", () => {
+  const session = selectedSession();
+  if (session) state.entryModeDrafts[session.id] = els.entryModeSelect.value;
+});
 for (const field of [els.playerUrl, els.spectatorUrl, els.tiktokStudioUrl]) {
   field.addEventListener("focus", () => selectUrlField(field));
   field.addEventListener("click", () => selectUrlField(field));
@@ -220,6 +234,7 @@ function auth() {
     localStorage.setItem("tiktokPvpAdminToken", state.token);
     els.createBtn.disabled = false;
     state.sessions = result.state?.sessions || [];
+    state.entryModes = result.state?.entryModes || state.entryModes;
     state.battleEventTypes = result.state?.battleEvents || [];
     show("已登入");
     render();
@@ -266,7 +281,8 @@ function friendlyCommandError(result) {
     ROOM_LOCKED: "房間已鎖定，請先解鎖或重置。",
     ROOM_NOT_WAITING: "請先按「重置」回到等待狀態，再加入 NPC。",
     ROOM_FULL: "房間已滿，請先踢人或移除 NPC。",
-    BOT_NOT_FOUND: "目前沒有 NPC 可以操作。"
+    BOT_NOT_FOUND: "目前沒有 NPC 可以操作。",
+    INVALID_ENTRY_MODE: "找不到這個席位模式，請重新整理後再試。"
   };
   return errors[result?.code] || result?.message || result?.code || "操作失敗";
 }
@@ -280,6 +296,7 @@ function render() {
   setUrlField(els.tiktokStudioUrl, urls.studio);
   renderStudioGuide(selected);
   renderBotControls(selected);
+  renderEntryModeControls(selected);
 
   if (urls.qr) {
     els.qrPreview.hidden = false;
@@ -291,11 +308,12 @@ function render() {
 
   els.roomStatus.textContent = selected ? `${selected.room.status} · round ${selected.room.round}` : "-";
   els.metrics.textContent = selected
-    ? `${selected.metrics.activePlayers} 人 · queue ${selected.metrics.queuedPlayers} · spectator ${selected.metrics.spectators}`
+    ? `${selected.metrics.activePlayers}/${selected.metrics.maxPlayers} 席 · queue ${selected.metrics.queuedPlayers} · spectator ${selected.metrics.spectators}`
     : "-";
 
   renderSessions();
   renderPlayers(selected);
+  renderQueue(selected);
   renderPilots(selected);
   renderAnalytics(selected);
   renderAssets(selected);
@@ -313,6 +331,80 @@ function normalizedSessionUrls(session) {
   const studio = session ? normalizeUrlToCurrentOrigin(session?.urls?.studio || `${window.location.origin}/studio`) : "";
   const qr = player ? `${window.location.origin}/qr.svg?text=${encodeURIComponent(player)}` : "";
   return { player, spectator, studio, qr };
+}
+
+function applyEntryMode() {
+  const session = selectedSession();
+  if (!session) {
+    show("請先選擇 session");
+    return;
+  }
+  const modeId = state.entryModeDrafts[session.id] || els.entryModeSelect?.value;
+  if (!modeId) {
+    show("請先選擇席位模式");
+    return;
+  }
+  command("set_entry_mode", { sessionId: session.id, modeId }, () => {
+    const mode = entryModes().find((item) => item.id === modeId);
+    show(`席位模式已套用：${mode?.label || modeId}`);
+  });
+}
+
+function renderEntryModeControls(selected) {
+  const modes = entryModes();
+  if (els.entryModeSelect) {
+    const optionsHtml = modes
+      .map((mode) => `<option value="${escapeHtml(mode.id)}">${escapeHtml(mode.label)} · ${mode.seatLimit} 席</option>`)
+      .join("");
+    if (els.entryModeSelect.dataset.optionsHtml !== optionsHtml) {
+      els.entryModeSelect.innerHTML = optionsHtml;
+      els.entryModeSelect.dataset.optionsHtml = optionsHtml;
+    }
+    const draftMode = selected?.id ? state.entryModeDrafts[selected.id] : "";
+    const targetMode = draftMode || selected?.room?.entryMode || modes[0]?.id || "";
+    if (document.activeElement !== els.entryModeSelect) {
+      els.entryModeSelect.value = targetMode;
+    }
+    els.entryModeSelect.disabled = !selected || !state.authed;
+  }
+  if (els.entryModeApplyBtn) els.entryModeApplyBtn.disabled = !selected || !state.authed;
+
+  const scarcity = selected?.room?.scarcity || selected?.metrics?.scarcity || null;
+  const fillRate = Math.max(0, Math.min(100, scarcity?.fillRate ?? selected?.metrics?.seatFillRate ?? 0));
+  if (els.scarcityMeter) els.scarcityMeter.style.width = `${fillRate}%`;
+  if (!els.scarcityStatus) return;
+  if (!selected) {
+    els.scarcityStatus.textContent = "建立場次後可切換 2 / 4 / 6 / 8 席限量模式。";
+    return;
+  }
+
+  const mode = modes.find((item) => item.id === selected.room.entryMode);
+  const openSlots = scarcity?.openSlots ?? selected.metrics.openSlots;
+  const queued = scarcity?.queuedPlayers ?? selected.metrics.queuedPlayers;
+  els.scarcityStatus.innerHTML = `
+    <strong>${escapeHtml(mode?.label || scarcity?.modeLabel || "席位模式")}</strong>
+    <div>${escapeHtml(scarcity?.message || "限量席位開放中。")}</div>
+    <div class="muted">上場 ${selected.metrics.activePlayers}/${selected.metrics.maxPlayers} · 剩 ${openSlots} 席 · 候補 ${queued} 人 · 滿席率 ${fillRate}%</div>
+  `;
+}
+
+function syncEntryModeDrafts() {
+  for (const session of state.sessions) {
+    if (state.entryModeDrafts[session.id] && state.entryModeDrafts[session.id] === session.room.entryMode) {
+      delete state.entryModeDrafts[session.id];
+    }
+  }
+}
+
+function entryModes() {
+  return state.entryModes.length
+    ? state.entryModes
+    : [
+        { id: "spotlight_duel", label: "試玩雙席", seatLimit: 2 },
+        { id: "standard_squad", label: "標準限量場", seatLimit: 4 },
+        { id: "elite_gate", label: "菁英候補場", seatLimit: 6 },
+        { id: "full_arena", label: "滿房開戰場", seatLimit: 8 }
+      ];
 }
 
 function normalizeUrlToCurrentOrigin(value) {
@@ -458,7 +550,7 @@ function renderSessions() {
         <span class="muted mono">${escapeHtml(session.room.status)}</span>
       </div>
       <div class="muted mono">${escapeHtml(session.id)}</div>
-      <div class="muted">${session.metrics.activePlayers} players · ${session.metrics.spectators} spectators</div>
+      <div class="muted">${session.metrics.activePlayers}/${session.metrics.maxPlayers} 席 · queue ${session.metrics.queuedPlayers} · ${session.metrics.spectators} spectators</div>
     `;
     item.addEventListener("click", () => {
       state.selectedSessionId = session.id;
@@ -496,6 +588,24 @@ function renderPlayers(selected) {
   if (!players.length) {
     els.playersBody.innerHTML = '<tr><td colspan="4" class="muted">尚無玩家</td></tr>';
   }
+}
+
+function renderQueue(selected) {
+  if (!els.queueStatus) return;
+  const queue = selected?.room?.queue || [];
+  const scarcity = selected?.room?.scarcity;
+  if (!selected) {
+    els.queueStatus.textContent = "請先選擇 session";
+    return;
+  }
+  if (!queue.length) {
+    els.queueStatus.innerHTML = `<strong>候補隊列</strong><br><span class="muted">${escapeHtml(scarcity?.message || "目前沒有候補，觀眾可掃 QR code 搶位。")}</span>`;
+    return;
+  }
+  els.queueStatus.innerHTML = `
+    <strong>候補隊列 · ${queue.length} 人</strong><br>
+    ${queue.slice(0, 8).map((player, index) => `<span>#${index + 1} ${escapeHtml(player.name)}</span>`).join("<br>")}
+  `;
 }
 
 function renderPilots(selected) {
@@ -538,7 +648,8 @@ function renderAnalytics(selected) {
   const peak = analytics.activityPeak || {};
   const mvp = analytics.mvp;
   const cards = [
-    ["玩家 / 上限", `${selected.metrics.activePlayers}/${selected.metrics.maxPlayers}`, `排隊 ${selected.metrics.queuedPlayers}`],
+    ["席位 / 候補", `${selected.metrics.activePlayers}/${selected.metrics.maxPlayers}`, `剩 ${selected.metrics.openSlots} · 候補 ${selected.metrics.queuedPlayers}`],
+    ["滿席熱度", `${selected.metrics.seatFillRate}%`, selected.room.scarcity?.message || "限量席位開放中"],
     ["觀戰來源", analytics.spectators.online ? "online" : "offline", analytics.spectators.lastSeenAt ? `最後 ${formatTime(analytics.spectators.lastSeenAt)}` : "尚無心跳"],
     ["紅藍比例", `${analytics.teams.players.red}:${analytics.teams.players.blue}`, `存活 ${analytics.teams.alive.red}:${analytics.teams.alive.blue}`],
     ["平均延遲", analytics.latency.averageMs == null ? "-" : `${analytics.latency.averageMs}ms`, `${analytics.latency.clients.length} clients`],
@@ -564,13 +675,17 @@ function renderAnalytics(selected) {
     <span>進入頁：${analytics.funnel.joinPageViews}</span><br>
     <span>成功加入：${analytics.funnel.successfulJoins}</span><br>
     <span>排隊：${analytics.funnel.queuedJoins}</span><br>
+    <span>候補補位：${analytics.funnel.promotedFromQueue}</span><br>
+    <span>總入場率：${analytics.funnel.admissionRate == null ? "-" : `${analytics.funnel.admissionRate}%`}</span><br>
     <span>離線：${analytics.funnel.disconnects}</span>
   `;
   els.controlStats.innerHTML = `
     <strong>營運操作</strong><br>
     <span>重置：${analytics.controls.resets}，下一局：${analytics.controls.nextRounds}</span><br>
     <span>鎖房：${analytics.controls.locks}，解鎖：${analytics.controls.unlocks}，踢人：${analytics.controls.kicks}</span><br>
-    <span>導演提示：${analytics.controls.manualDirectorSignals}，戰場事件：${analytics.controls.manualBattleEvents}</span>
+    <span>席位模式切換：${analytics.controls.entryModeChanges || 0}</span><br>
+    <span>導演提示：${analytics.controls.manualDirectorSignals}，主播事件：${analytics.controls.manualBattleEvents}</span><br>
+    <span>觀眾事件：${analytics.controls.audienceBattleEvents || 0}</span>
   `;
 
   els.latencyBody.innerHTML = "";
@@ -636,8 +751,8 @@ function renderAssets(selected) {
     : "目前尚未完成任何回合，完成一局後會自動生成戰報摘要。";
   const queueText = selected.metrics.queuedPlayers > 0
     ? `目前排隊 ${selected.metrics.queuedPlayers} 位，下一局準備補位。`
-    : "目前沒有排隊，觀眾可以掃 QR code 加入下一局。";
-  const script = `下一局準備開始，${queueText}還有 ${selected.metrics.openSlots} 個名額。紅藍機甲準備開戰。`;
+    : "目前沒有排隊，觀眾可以掃 QR code 搶下一個席位。";
+  const script = `下一局準備開始，${selected.room.scarcity?.scarcityLabel || `${selected.metrics.maxPlayers} 席限量`}，${queueText}還有 ${selected.metrics.openSlots} 個名額。紅藍機甲準備開戰。`;
   const mvpList = [
     mvp ? `本局 MVP：${mvp.name} · ${mvp.team || "-"} · ${mvp.score}` : "本局 MVP：尚未產生",
     analytics?.mvp ? `活動 MVP：${analytics.mvp.name} · ${analytics.mvp.count} 次` : "活動 MVP：尚未產生"
@@ -700,10 +815,17 @@ function renderTimeline(container, events, emptyText) {
   for (const event of events.slice(-8).reverse()) {
     const item = document.createElement("div");
     item.className = "timeline-item";
+    const nestedDetails = event.details?.details || {};
+    const detail = nestedDetails.label || event.details?.title || event.details?.signalId || event.details?.eventId || "";
+    const actor = nestedDetails.requestedBy === "audience"
+      ? `${nestedDetails.actorRole === "queued" ? "候補" : "觀眾"} · ${nestedDetails.actorName || ""}`
+      : nestedDetails.requestedBy === "admin"
+        ? "主播/Admin"
+        : "";
     item.innerHTML = `
       <strong>${escapeHtml(event.action.replace("director_", "").replace("battle_", ""))}</strong>
       <div class="muted mono">${formatTime(event.at)} · round ${event.round} · tick ${event.tick}</div>
-      <div class="muted">${escapeHtml(event.details?.title || event.details?.signalId || event.details?.eventId || "")}</div>
+      <div class="muted">${escapeHtml(detail)}${actor ? ` · ${escapeHtml(actor)}` : ""}</div>
     `;
     container.append(item);
   }

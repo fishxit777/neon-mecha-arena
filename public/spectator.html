@@ -51,6 +51,10 @@
         display: none;
       }
 
+      body.studio-capture .audience-panel {
+        display: none;
+      }
+
       .toolbar {
         position: fixed;
         top: 14px;
@@ -71,6 +75,67 @@
         min-height: 34px;
         padding: 0 10px;
       }
+
+      .audience-panel {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        z-index: 4;
+        display: grid;
+        gap: 8px;
+        width: min(420px, calc(100vw - 28px));
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.34);
+        border-left: 4px solid #38bdf8;
+        border-radius: 8px;
+        background: rgba(7, 11, 20, 0.88);
+        color: #dbeafe;
+        box-shadow:
+          0 18px 48px rgba(0, 0, 0, 0.32),
+          inset 0 0 24px rgba(56, 189, 248, 0.08);
+        backdrop-filter: blur(10px);
+      }
+
+      .audience-panel strong {
+        color: #f8fafc;
+      }
+
+      .audience-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .audience-actions button {
+        min-height: 42px;
+        padding: 0 8px;
+        border-radius: 6px;
+        font-weight: 800;
+      }
+
+      .audience-actions button:disabled {
+        opacity: 0.52;
+      }
+
+      .audience-status {
+        min-height: 20px;
+        color: #bfdbfe;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 520px) {
+        .audience-panel {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          width: auto;
+          padding: 10px;
+        }
+
+        .audience-actions {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
@@ -87,6 +152,15 @@
       <button id="layout916">9:16</button>
       <button id="fullscreen">全螢幕</button>
     </div>
+    <section class="audience-panel" id="audiencePanel" aria-label="觀眾場外干預">
+      <strong>場外干預</strong>
+      <div class="audience-status" id="audienceStatus">等待對戰開始</div>
+      <div class="audience-actions">
+        <button type="button" data-audience-event="shield_boost">弱隊護盾</button>
+        <button type="button" data-audience-event="supply_drop">補給投放</button>
+        <button type="button" data-audience-event="orbital_strike">軌道砲</button>
+      </div>
+    </section>
 
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/spectator.js"></script>

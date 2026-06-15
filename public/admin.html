@@ -27,6 +27,47 @@
         min-height: 42px;
       }
 
+      .entry-mode-row {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) auto;
+        gap: 8px;
+        align-items: end;
+      }
+
+      .entry-mode-row select {
+        min-height: 42px;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 12px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      .scarcity-panel {
+        border: 1px solid #f6bf6c;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #fffaf0, #fffdf8);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .scarcity-meter {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #f1e1bc;
+      }
+
+      .scarcity-meter span {
+        display: block;
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #16a34a, #f59e0b 62%, #dc2626);
+        transition: width 160ms ease;
+      }
+
       .director-actions,
       .event-actions {
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -229,7 +270,8 @@
         }
 
         .source-grid,
-        .studio-sop {
+        .studio-sop,
+        .entry-mode-row {
           grid-template-columns: 1fr;
         }
       }
@@ -289,6 +331,17 @@
               <button class="red" id="removeBotBtn">移除 NPC</button>
             </div>
             <div class="notice" id="botStatus">手機暫時連不上時，可加入 NPC 補第二位玩家測試；正式直播前再移除 NPC。</div>
+            <div class="scarcity-panel">
+              <div class="entry-mode-row">
+                <label>
+                  <span class="muted">飢餓席位模式</span>
+                  <select id="entryModeSelect" aria-label="飢餓席位模式"></select>
+                </label>
+                <button class="blue" id="entryModeApplyBtn">套用席位</button>
+              </div>
+              <div class="scarcity-meter" aria-hidden="true"><span id="scarcityMeter"></span></div>
+              <div id="scarcityStatus">建立場次後可切換 2 / 4 / 6 / 8 席限量模式。</div>
+            </div>
             <div class="grid source-grid">
               <div class="link-box source-card">
                 <strong>玩家連結</strong>
@@ -449,6 +502,7 @@
               </thead>
               <tbody id="playersBody"></tbody>
             </table>
+            <div class="link-box" id="queueStatus">尚無候補隊列</div>
             <div class="link-box" id="mvpSummary">尚無 MVP 資料</div>
             <table class="table">
               <thead>

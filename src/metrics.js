@@ -5,6 +5,7 @@ export function createAnalyticsState(now = Date.now()) {
       joinPageViews: 0,
       successfulJoins: 0,
       queuedJoins: 0,
+      promotedFromQueue: 0,
       disconnects: 0
     },
     controls: {
@@ -13,8 +14,10 @@ export function createAnalyticsState(now = Date.now()) {
       kicks: 0,
       locks: 0,
       unlocks: 0,
+      entryModeChanges: 0,
       manualDirectorSignals: 0,
-      manualBattleEvents: 0
+      manualBattleEvents: 0,
+      audienceBattleEvents: 0
     },
     latency: {
       clients: {},
@@ -37,6 +40,8 @@ export function createRoomMetrics(room, options = {}) {
   const aliveByTeam = countByTeam(alivePlayers);
   const maxPlayers = Number.isFinite(options.maxPlayers) ? options.maxPlayers : players.length;
   const analytics = ensureAnalytics(room, finiteNumber(options.now, Date.now()));
+  const scarcity = room.scarcity || {};
+  const openSlots = Math.max(0, maxPlayers - players.length);
 
   return {
     status: room.status,
@@ -50,7 +55,12 @@ export function createRoomMetrics(room, options = {}) {
     spectators: room.spectators.size,
     projectiles: room.projectiles.size,
     maxPlayers,
-    openSlots: Math.max(0, maxPlayers - players.length),
+    hardMaxPlayers: Number.isFinite(room.hardMaxPlayers) ? room.hardMaxPlayers : maxPlayers,
+    entryMode: room.entryMode || scarcity.modeId || null,
+    seatLimit: Number.isFinite(room.seatLimit) ? room.seatLimit : maxPlayers,
+    openSlots,
+    seatFillRate: maxPlayers > 0 ? Math.round((players.length / maxPlayers) * 100) : 0,
+    scarcity,
     teamCounts,
     aliveByTeam,
     teamBalance: calculateTeamBalance(teamCounts),
@@ -79,15 +89,31 @@ export function createAdminAnalytics(room, options = {}) {
     .slice(0, 12);
   const peak = getPeakActivity(analytics.activityBuckets);
   const totalJoinAttempts = analytics.funnel.successfulJoins + analytics.funnel.queuedJoins;
+  const admittedJoins = analytics.funnel.successfulJoins + analytics.funnel.promotedFromQueue;
   const conversionBase = Math.max(analytics.funnel.joinPageViews, totalJoinAttempts);
   const joinConversionRate =
     conversionBase > 0 ? Math.round((analytics.funnel.successfulJoins / conversionBase) * 100) : null;
+  const admissionRate = conversionBase > 0 ? Math.min(100, Math.round((admittedJoins / conversionBase) * 100)) : null;
+  const seatLimit = Number.isFinite(room.seatLimit) ? room.seatLimit : room.players.size;
+  const activePlayers = room.players.size;
+  const queuedPlayers = room.queue.length;
 
   return {
     funnel: {
       ...analytics.funnel,
       totalJoinAttempts,
-      joinConversionRate
+      admittedJoins,
+      joinConversionRate,
+      admissionRate
+    },
+    scarcity: {
+      ...(room.scarcity || {}),
+      seatLimit,
+      activePlayers,
+      queuedPlayers,
+      fillRate: seatLimit > 0 ? Math.round((activePlayers / seatLimit) * 100) : 0,
+      soldOut: seatLimit > 0 && activePlayers >= seatLimit,
+      queuePressure: queuedPlayers > 0 ? "hot" : activePlayers >= seatLimit ? "full" : "open"
     },
     spectators: {
       count: room.spectators.size,
@@ -251,7 +277,9 @@ export function createSessionExport(session, options = {}) {
       id: room.id,
       status: room.status,
       round: room.round,
-      winnerTeam: room.winnerTeam
+      winnerTeam: room.winnerTeam,
+      entryMode: room.entryMode,
+      scarcity: room.scarcity || null
     },
     metrics,
     analytics,
@@ -267,6 +295,7 @@ export function sessionExportToCsv(exportData) {
   ];
   rows.push(["session", exportData.session.id, exportData.session.label, "status", exportData.room.status, `round ${exportData.room.round}`]);
   rows.push(["metrics", exportData.session.id, "activePlayers", "count", exportData.metrics.activePlayers, `max ${exportData.metrics.maxPlayers}`]);
+  rows.push(["metrics", exportData.session.id, "entryMode", "mode", exportData.room.entryMode || "", `seat ${exportData.metrics.seatLimit}`]);
   rows.push(["metrics", exportData.session.id, "queue", "count", exportData.metrics.queuedPlayers, ""]);
   rows.push(["metrics", exportData.session.id, "spectators", "count", exportData.metrics.spectators, ""]);
   rows.push(["metrics", exportData.session.id, "averageLatencyMs", "ms", exportData.metrics.averageLatencyMs ?? "", ""]);

@@ -34,6 +34,17 @@ test("admin creates a session, players join, spectator receives game state", { t
     });
     assert.equal(created.ok, true);
     assert.equal(created.session.urls.player.includes(`/join/${created.session.id}`), true);
+    assert.equal(created.session.urls.studio.includes(`/watch/${created.session.id}?studio=1`), true);
+    assert.equal(created.session.urls.latestStudio.endsWith("/studio"), true);
+
+    const modeChanged = await emitAck(admin, "admin_command", {
+      action: "set_entry_mode",
+      token: ADMIN_TOKEN,
+      sessionId: created.session.id,
+      modeId: "spotlight_duel"
+    });
+    assert.equal(modeChanged.ok, true);
+    assert.equal(modeChanged.session.room.scarcity.seatLimit, 2);
 
     const spectator = connectClient();
     await onceConnect(spectator);
@@ -45,7 +56,8 @@ test("admin creates a session, players join, spectator receives game state", { t
 
     const p1 = connectClient();
     const p2 = connectClient();
-    await Promise.all([onceConnect(p1), onceConnect(p2)]);
+    const p3 = connectClient();
+    await Promise.all([onceConnect(p1), onceConnect(p2), onceConnect(p3)]);
     const join1 = await emitAck(p1, "join_session", {
       sessionId: created.session.id,
       clientType: "player",
@@ -58,8 +70,16 @@ test("admin creates a session, players join, spectator receives game state", { t
       name: "Beta",
       pilotId: "pilot_socket_beta"
     });
+    const join3 = await emitAck(p3, "join_session", {
+      sessionId: created.session.id,
+      clientType: "player",
+      name: "Gamma",
+      pilotId: "pilot_socket_gamma"
+    });
     assert.equal(join1.ok, true);
     assert.equal(join2.ok, true);
+    assert.equal(join3.ok, true);
+    assert.equal(join3.role, "queued");
 
     const started = await emitAck(admin, "admin_command", {
       action: "start_round",
@@ -68,12 +88,34 @@ test("admin creates a session, players join, spectator receives game state", { t
     });
     assert.equal(started.ok, true);
 
+    const spectatorIntervention = await emitAck(spectator, "audience_intervention", {
+      sessionId: created.session.id,
+      eventType: "shield_boost"
+    });
+    assert.equal(spectatorIntervention.ok, true);
+    assert.equal(spectatorIntervention.event.details.actorRole, "spectator");
+
+    const queuedIntervention = await emitAck(p3, "audience_intervention", {
+      sessionId: created.session.id,
+      eventType: "supply_drop"
+    });
+    assert.equal(queuedIntervention.ok, true);
+    assert.equal(queuedIntervention.event.details.actorRole, "queued");
+
+    const activeRejected = await emitAck(p1, "audience_intervention", {
+      sessionId: created.session.id,
+      eventType: "orbital_strike"
+    });
+    assert.equal(activeRejected.ok, false);
+    assert.equal(activeRejected.code, "AUDIENCE_ONLY");
+
     p1.emit("player_input", { right: true, attack: true });
     const gameState = await waitForEvent(spectator, "game_state");
     assert.equal(gameState.sessionId, created.session.id);
     assert.equal(gameState.room.players.length, 2);
     assert.equal(gameState.room.status, "playing");
     assert.equal(gameState.room.players.some((player) => player.pilotId === "pilot_socket_alpha"), true);
+    assert.equal(gameState.room.audienceInterventions.roundLimit, 6);
 
     const director = await emitAck(admin, "admin_command", {
       action: "director_signal",
@@ -103,6 +145,7 @@ test("admin creates a session, players join, spectator receives game state", { t
 
     const metrics = await fetch(`${BASE_URL}/metrics`).then((res) => res.json());
     assert.equal(metrics.sessions[0].activePlayers, 2);
+    assert.equal(metrics.sessions[0].queuedPlayers, 1);
 
     const jsonExport = await fetch(`${BASE_URL}/admin/export/${created.session.id}.json?token=${ADMIN_TOKEN}`).then((res) => res.json());
     assert.equal(jsonExport.session.id, created.session.id);
@@ -126,6 +169,7 @@ test("admin creates a session, players join, spectator receives game state", { t
     spectator.close();
     p1.close();
     p2.close();
+    p3.close();
   } finally {
     server.kill();
   }

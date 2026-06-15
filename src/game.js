@@ -60,6 +60,63 @@ export const GAME = {
   maxNicknameLength: 16
 };
 
+export const ENTRY_MODES = {
+  spotlight_duel: {
+    id: "spotlight_duel",
+    label: "試玩雙席",
+    seatLimit: 2,
+    scarcityLabel: "2 席限量",
+    description: "快節奏試玩場，主播可用最少人數快速展示玩法。"
+  },
+  standard_squad: {
+    id: "standard_squad",
+    label: "標準限量場",
+    seatLimit: 4,
+    scarcityLabel: "4 席搶位",
+    description: "直播預設模式，保留明顯搶位壓力與穩定對戰節奏。"
+  },
+  elite_gate: {
+    id: "elite_gate",
+    label: "菁英候補場",
+    seatLimit: 6,
+    scarcityLabel: "6 席候補",
+    description: "中型場次，適合觀眾較多時維持候補熱度。"
+  },
+  full_arena: {
+    id: "full_arena",
+    label: "滿房開戰場",
+    seatLimit: 8,
+    scarcityLabel: "8 席滿房",
+    description: "最大對戰席位，適合壓軸或測試高人數場。"
+  }
+};
+
+const DEFAULT_ENTRY_MODE = "standard_squad";
+
+export const AUDIENCE_INTERVENTIONS = {
+  shield_boost: {
+    eventType: "shield_boost",
+    label: "弱隊護盾",
+    description: "替落後方補一段臨時護盾，讓戰局有翻盤窗口。"
+  },
+  supply_drop: {
+    eventType: "supply_drop",
+    label: "補給投放",
+    description: "替低血量玩家投放維修補給。"
+  },
+  orbital_strike: {
+    eventType: "orbital_strike",
+    label: "軌道砲",
+    description: "短暫打擊中央航道，迫使場上玩家走位。"
+  }
+};
+
+const AUDIENCE_INTERVENTION_RULES = {
+  roundLimit: 6,
+  actorCooldownMs: 20_000,
+  eventCooldownMs: 10_000
+};
+
 const TEAM_COLORS = {
   red: "#ef4444",
   blue: "#38bdf8"
@@ -69,6 +126,126 @@ const BANNED_WORDS = ["admin", "moderator", "tiktok", "system"];
 const DAMAGE_EVENT_TTL_MS = 1_800;
 const BOT_SOCKET_PREFIX = "bot:";
 const BOT_NAMES = ["NPC Mecha", "Training Drone", "Auto Pilot", "Mecha Ghost"];
+
+export function getEntryMode(modeId) {
+  return ENTRY_MODES[modeId] || ENTRY_MODES[DEFAULT_ENTRY_MODE];
+}
+
+function activeSeatLimit(room) {
+  const mode = getEntryMode(room?.entryMode);
+  const configured = Number.isFinite(room?.seatLimit) ? room.seatLimit : mode.seatLimit;
+  return Math.max(2, Math.min(GAME.maxPlayers, Math.round(configured)));
+}
+
+function activeGameConfig(room) {
+  return {
+    ...GAME,
+    maxPlayers: activeSeatLimit(room),
+    hardMaxPlayers: GAME.maxPlayers
+  };
+}
+
+function buildScarcityMessage({ openSlots, queuedPlayers, seatLimit, pressure }) {
+  if (queuedPlayers > 0) return `候補中 ${queuedPlayers} 人，下一個空位會自動補上。`;
+  if (openSlots <= 0) return `本局 ${seatLimit} 席已滿，現在加入會進入候補。`;
+  if (pressure === "last_call") return "最後 1 席，下一位進場後即將滿席。";
+  if (pressure === "warming") return `剩 ${openSlots} 席，席位正在升溫。`;
+  return `限量 ${seatLimit} 席開放中，先加入先卡位。`;
+}
+
+function updateScarcityState(room, now = Date.now()) {
+  if (!room) return null;
+  const mode = getEntryMode(room.entryMode);
+  const seatLimit = activeSeatLimit(room);
+  const openSlots = Math.max(0, seatLimit - room.players.size);
+  const queuedPlayers = room.queue.length;
+  const pressure =
+    queuedPlayers > 0 || openSlots <= 0
+      ? "sold_out"
+      : openSlots === 1
+        ? "last_call"
+        : openSlots <= Math.ceil(seatLimit / 2)
+          ? "warming"
+          : "open";
+
+  room.entryMode = mode.id;
+  room.seatLimit = seatLimit;
+  room.hardMaxPlayers = GAME.maxPlayers;
+  room.scarcity = {
+    modeId: mode.id,
+    modeLabel: mode.label,
+    scarcityLabel: mode.scarcityLabel,
+    description: mode.description,
+    seatLimit,
+    hardMaxPlayers: GAME.maxPlayers,
+    openSlots,
+    activePlayers: room.players.size,
+    queuedPlayers,
+    fillRate: seatLimit > 0 ? Math.round((room.players.size / seatLimit) * 100) : 0,
+    pressure,
+    message: buildScarcityMessage({ openSlots, queuedPlayers, seatLimit, pressure }),
+    updatedAt: now
+  };
+  return room.scarcity;
+}
+
+function createAudienceInterventionState(now = Date.now(), round = 0) {
+  return {
+    round,
+    roundLimit: AUDIENCE_INTERVENTION_RULES.roundLimit,
+    actorCooldownMs: AUDIENCE_INTERVENTION_RULES.actorCooldownMs,
+    eventCooldownMs: AUDIENCE_INTERVENTION_RULES.eventCooldownMs,
+    usedThisRound: 0,
+    lastByActor: {},
+    lastByType: {},
+    history: [],
+    updatedAt: now
+  };
+}
+
+function ensureAudienceInterventionState(room, now = Date.now()) {
+  if (!room.audienceInterventions || room.audienceInterventions.round !== room.round) {
+    room.audienceInterventions = createAudienceInterventionState(now, room.round);
+  }
+  return room.audienceInterventions;
+}
+
+function serializeAudienceInterventions(state, now = Date.now()) {
+  if (!state) return null;
+  const remaining = Math.max(0, state.roundLimit - state.usedThisRound);
+  return {
+    round: state.round,
+    roundLimit: state.roundLimit,
+    usedThisRound: state.usedThisRound,
+    remaining,
+    actorCooldownMs: state.actorCooldownMs,
+    eventCooldownMs: state.eventCooldownMs,
+    options: Object.values(AUDIENCE_INTERVENTIONS).map((option) => {
+      const lastUsedAt = state.lastByType[option.eventType] || null;
+      const readyAt = lastUsedAt ? lastUsedAt + state.eventCooldownMs : 0;
+      return {
+        ...option,
+        readyAt,
+        remainingMs: Math.max(0, readyAt - now)
+      };
+    }),
+    history: state.history.slice(-12),
+    updatedAt: state.updatedAt
+  };
+}
+
+function preparePlayerForSeat(player, now) {
+  player.connected = true;
+  player.hp = GAME.playerHp;
+  player.shieldHp = 0;
+  player.maxLives = GAME.playerLives;
+  player.lives = GAME.playerLives;
+  player.broken = false;
+  player.breakAnim = 0;
+  player.alive = true;
+  player.input = createEmptyInput();
+  player.roundStats = createRoundStats(now);
+}
 
 function shortId(prefix) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
@@ -90,10 +267,14 @@ export function cleanNickname(value) {
 }
 
 function emptyRoom(id, now) {
-  return {
+  const room = {
     id,
     status: "waiting",
     locked: false,
+    entryMode: DEFAULT_ENTRY_MODE,
+    seatLimit: ENTRY_MODES[DEFAULT_ENTRY_MODE].seatLimit,
+    hardMaxPlayers: GAME.maxPlayers,
+    scarcity: null,
     pilotIds: new Set(),
     players: new Map(),
     queue: [],
@@ -110,9 +291,12 @@ function emptyRoom(id, now) {
     auditLog: [],
     director: createDirectorState(now),
     battleEvents: createBattleEventState(now),
+    audienceInterventions: createAudienceInterventionState(now, 0),
     analytics: createAnalyticsState(now),
     foundation: createFoundationState(now)
   };
+  updateScarcityState(room, now);
+  return room;
 }
 
 function spawnPoint(team, index) {
@@ -292,11 +476,6 @@ export class GameWorld {
       return { ok: true, role: "admin", session: this.getPublicSession(sessionId) };
     }
 
-    if (room.locked) {
-      recordAnalyticsError(room, { code: "ROOM_LOCKED", message: "Room is locked", source: "join_session", socketId }, this.now());
-      return { ok: false, code: "ROOM_LOCKED", message: "Room is locked" };
-    }
-
     const playerName = cleanNickname(name);
     const pilot = upsertPilot(this.store, {
       pilotId: normalizePilotId(pilotId),
@@ -334,24 +513,39 @@ export class GameWorld {
     };
     room.pilotIds.add(player.pilotId);
 
-    if (room.players.size < GAME.maxPlayers && room.status === "waiting") {
+    if (!room.locked && room.status === "waiting" && room.players.size < activeSeatLimit(room)) {
       room.players.set(player.id, player);
       this.socketIndex.set(socketId, { sessionId, playerId: player.id, clientType: "player" });
       this.assignTeams(room);
       recordFunnel(room, "successfulJoins", this.now());
       recordActivity(room, "joins", this.now());
       this.audit(session, "player_joined", { playerId: player.id, pilotId: player.pilotId, name: player.name, returning: player.returningPilot });
+      updateScarcityState(room, this.now());
       this.runDirector(session);
       return { ok: true, role: "player", playerId: player.id, session: this.getPublicSession(sessionId) };
     }
 
+    const queueReason = room.locked ? "locked" : room.status !== "waiting" ? room.status : "seat_limit";
     room.queue.push(player);
     this.socketIndex.set(socketId, { sessionId, playerId: player.id, clientType: "queued" });
     recordFunnel(room, "queuedJoins", this.now());
     recordActivity(room, "joins", this.now());
-    this.audit(session, "player_queued", { playerId: player.id, pilotId: player.pilotId, name: player.name, returning: player.returningPilot });
+    this.audit(session, "player_queued", {
+      playerId: player.id,
+      pilotId: player.pilotId,
+      name: player.name,
+      returning: player.returningPilot,
+      reason: queueReason
+    });
+    updateScarcityState(room, this.now());
     this.runDirector(session);
-    return { ok: true, role: "queued", playerId: player.id, session: this.getPublicSession(sessionId) };
+    return {
+      ok: true,
+      role: "queued",
+      playerId: player.id,
+      message: room.scarcity?.message || "已進入候補，請保持頁面開啟。",
+      session: this.getPublicSession(sessionId)
+    };
   }
 
   addBotPlayer(sessionId, mode = "auto") {
@@ -368,8 +562,8 @@ export class GameWorld {
     if (room.locked) {
       return { ok: false, code: "ROOM_LOCKED", message: "Room is locked" };
     }
-    if (room.players.size >= GAME.maxPlayers) {
-      return { ok: false, code: "ROOM_FULL", message: "房間已滿，請先踢人或重置。" };
+    if (room.players.size + room.queue.length >= GAME.maxPlayers) {
+      return { ok: false, code: "ROOM_FULL", message: "NPC 測試席已滿，請先踢人、移除 NPC 或重置。" };
     }
 
     const now = this.now();
@@ -413,13 +607,26 @@ export class GameWorld {
     };
 
     room.pilotIds.add(player.pilotId);
-    room.players.set(player.id, player);
-    this.assignTeams(room);
-    recordFunnel(room, "successfulJoins", now);
+    if (room.players.size < activeSeatLimit(room)) {
+      room.players.set(player.id, player);
+      this.socketIndex.set(player.socketId, { sessionId, playerId: player.id, clientType: "player" });
+      this.assignTeams(room);
+      recordFunnel(room, "successfulJoins", now);
+      recordActivity(room, "joins", now);
+      this.audit(session, "bot_player_added", { playerId: player.id, pilotId: player.pilotId, name: player.name, mode: player.botMode }, "admin");
+      updateScarcityState(room, now);
+      this.runDirector(session);
+      return { ok: true, role: "player", playerId: player.id, session: this.getPublicSession(sessionId) };
+    }
+
+    room.queue.push(player);
+    this.socketIndex.set(player.socketId, { sessionId, playerId: player.id, clientType: "queued" });
+    recordFunnel(room, "queuedJoins", now);
     recordActivity(room, "joins", now);
-    this.audit(session, "bot_player_added", { playerId: player.id, pilotId: player.pilotId, name: player.name, mode: player.botMode }, "admin");
+    this.audit(session, "bot_player_queued", { playerId: player.id, pilotId: player.pilotId, name: player.name, mode: player.botMode }, "admin");
+    updateScarcityState(room, now);
     this.runDirector(session);
-    return { ok: true, role: "player", playerId: player.id, session: this.getPublicSession(sessionId) };
+    return { ok: true, role: "queued", playerId: player.id, session: this.getPublicSession(sessionId) };
   }
 
   setBotMode(sessionId, mode = "auto") {
@@ -442,6 +649,7 @@ export class GameWorld {
     }
     if (!changed) return { ok: false, code: "BOT_NOT_FOUND", message: "目前沒有 NPC 可切換。" };
     this.audit(session, "bot_mode_changed", { mode: botMode, count: changed }, "admin");
+    updateScarcityState(room, this.now());
     this.runDirector(session);
     return { ok: true, session: this.getPublicSession(sessionId) };
   }
@@ -460,7 +668,11 @@ export class GameWorld {
     room.queue = room.queue.filter((player) => !player.isBot);
     removed += queueBefore - room.queue.length;
     if (!removed) return { ok: false, code: "BOT_NOT_FOUND", message: "目前沒有 NPC 可移除。" };
-    this.assignTeams(room, room.status !== "playing");
+    if (room.status === "waiting") this.rebalanceWaitingRoom(session, { resetPositions: true });
+    else {
+      this.assignTeams(room, false);
+      updateScarcityState(room, this.now());
+    }
     recordControl(room, "kicks", this.now());
     this.audit(session, "bot_players_removed", { count: removed }, "admin");
     if (room.status === "playing") this.checkWinCondition(session, this.now());
@@ -497,13 +709,13 @@ export class GameWorld {
           this.audit(session, "player_disconnected_mid_round", { playerId: player.id });
         } else {
           room.players.delete(player.id);
-          this.promoteQueue(room);
-          this.assignTeams(room);
+          this.rebalanceWaitingRoom(session);
           this.audit(session, "player_left", { playerId: player.id });
         }
       }
     }
     this.socketIndex.delete(socketId);
+    updateScarcityState(room, this.now());
     this.runDirector(session);
     return info.sessionId;
   }
@@ -575,18 +787,13 @@ export class GameWorld {
     room.winnerTeam = null;
     room.notice = "Round started";
     this.assignTeams(room, true);
-    scheduleDefaultBattleEvents(room, startedAt, GAME);
+    scheduleDefaultBattleEvents(room, startedAt, activeGameConfig(room));
+    room.audienceInterventions = createAudienceInterventionState(startedAt, room.round);
     for (const player of room.players.values()) {
-      player.roundStats = createRoundStats(startedAt);
-      player.hp = GAME.playerHp;
-      player.shieldHp = 0;
-      player.maxLives = GAME.playerLives;
-      player.lives = GAME.playerLives;
-      player.broken = false;
-      player.breakAnim = 0;
-      player.alive = true;
+      preparePlayerForSeat(player, startedAt);
       this.activatePilot(player);
     }
+    updateScarcityState(room, startedAt);
     this.recordDirectorSignal(session, resetDirectorForRound(room.director, room.round, startedAt));
     this.audit(session, "round_started", { round: room.round });
     return { ok: true, session: this.getPublicSession(sessionId) };
@@ -609,19 +816,35 @@ export class GameWorld {
     room.winnerTeam = null;
     room.notice = "Room reset";
     for (const player of room.players.values()) {
-      player.hp = GAME.playerHp;
-      player.shieldHp = 0;
-      player.maxLives = GAME.playerLives;
-      player.lives = GAME.playerLives;
-      player.broken = false;
-      player.breakAnim = 0;
-      player.alive = true;
-      player.input = createEmptyInput();
-      player.roundStats = createRoundStats(this.now());
+      preparePlayerForSeat(player, this.now());
     }
-    this.promoteQueue(room);
-    this.assignTeams(room, true);
-    this.audit(session, "room_reset", { keepLocked });
+    const rebalance = this.rebalanceWaitingRoom(session, { resetPositions: true });
+    this.audit(session, "room_reset", { keepLocked, ...rebalance });
+    this.runDirector(session);
+    return { ok: true, session: this.getPublicSession(sessionId) };
+  }
+
+  setEntryMode(sessionId, modeId) {
+    const session = this.getSession(sessionId);
+    if (!session) return { ok: false, code: "SESSION_NOT_FOUND" };
+    const mode = ENTRY_MODES[modeId];
+    if (!mode) {
+      return { ok: false, code: "INVALID_ENTRY_MODE", message: "Unknown entry mode" };
+    }
+
+    const room = session.room;
+    const previousMode = getEntryMode(room.entryMode);
+    room.entryMode = mode.id;
+    room.seatLimit = mode.seatLimit;
+    recordControl(room, "entryModeChanges", this.now());
+    const rebalance = this.rebalanceWaitingRoom(session);
+    updateScarcityState(room, this.now());
+    this.audit(session, "entry_mode_changed", {
+      from: previousMode.id,
+      to: mode.id,
+      seatLimit: mode.seatLimit,
+      ...rebalance
+    }, "admin");
     this.runDirector(session);
     return { ok: true, session: this.getPublicSession(sessionId) };
   }
@@ -631,7 +854,13 @@ export class GameWorld {
     if (!session) return { ok: false, code: "SESSION_NOT_FOUND" };
     session.room.locked = locked === true;
     recordControl(session.room, locked ? "locks" : "unlocks", this.now());
+    const rebalance = this.rebalanceWaitingRoom(session);
     this.audit(session, locked ? "room_locked" : "room_unlocked", {});
+    if (rebalance.promoted || rebalance.demoted) {
+      this.audit(session, "queue_rebalanced", rebalance, "admin");
+    }
+    updateScarcityState(session.room, this.now());
+    this.runDirector(session);
     return { ok: true, session: this.getPublicSession(sessionId) };
   }
 
@@ -642,9 +871,8 @@ export class GameWorld {
     const removed = room.players.delete(playerId);
     room.queue = room.queue.filter((player) => player.id !== playerId);
     recordControl(room, "kicks", this.now());
-    this.promoteQueue(room);
-    this.assignTeams(room);
-    this.audit(session, "player_kicked", { playerId, removed });
+    const rebalance = this.rebalanceWaitingRoom(session);
+    this.audit(session, "player_kicked", { playerId, removed, ...rebalance });
     this.runDirector(session);
     return { ok: removed, session: this.getPublicSession(sessionId) };
   }
@@ -667,6 +895,103 @@ export class GameWorld {
     if (details?.requestedBy === "admin") recordControl(session.room, "manualBattleEvents", this.now());
     this.recordBattleEvent(session, result.event);
     return { ok: true, event: result.event, session: this.getPublicSession(sessionId) };
+  }
+
+  triggerAudienceIntervention(socketId, { sessionId, eventType } = {}) {
+    const info = this.socketIndex.get(socketId);
+    const resolvedSessionId = sessionId || info?.sessionId;
+    if (!info || !resolvedSessionId || info.sessionId !== resolvedSessionId) {
+      return { ok: false, code: "AUDIENCE_NOT_JOINED", message: "請先用觀戰或候補身份進入場次。" };
+    }
+    const session = this.getSession(resolvedSessionId);
+    if (!session) return { ok: false, code: "SESSION_NOT_FOUND" };
+    const room = session.room;
+    const audienceRoles = new Set(["spectator", "queued"]);
+    if (!audienceRoles.has(info.clientType)) {
+      return { ok: false, code: "AUDIENCE_ONLY", message: "只有觀眾或候補玩家可以觸發場外干預。" };
+    }
+    if (room.status !== "playing") {
+      return {
+        ok: false,
+        code: "INTERVENTION_NOT_OPEN",
+        message: "對戰開始後才能觸發場外干預。",
+        intervention: serializeAudienceInterventions(ensureAudienceInterventionState(room, this.now()), this.now())
+      };
+    }
+    const option = AUDIENCE_INTERVENTIONS[eventType];
+    if (!option) {
+      return { ok: false, code: "UNKNOWN_AUDIENCE_INTERVENTION", message: "找不到這個觀眾事件。" };
+    }
+
+    const now = this.now();
+    const state = ensureAudienceInterventionState(room, now);
+    const actor = this.resolveAudienceActor(room, info, socketId);
+    const lastActorUsedAt = state.lastByActor[actor.id] || null;
+    const actorReadyAt = lastActorUsedAt ? lastActorUsedAt + state.actorCooldownMs : 0;
+    if (actorReadyAt > now) {
+      return {
+        ok: false,
+        code: "AUDIENCE_COOLDOWN",
+        message: `個人冷卻中，${Math.ceil((actorReadyAt - now) / 1000)} 秒後可再觸發。`,
+        retryAfterMs: actorReadyAt - now,
+        actorReadyAt,
+        intervention: serializeAudienceInterventions(state, now)
+      };
+    }
+    const lastTypeUsedAt = state.lastByType[eventType] || null;
+    const typeReadyAt = lastTypeUsedAt ? lastTypeUsedAt + state.eventCooldownMs : 0;
+    if (typeReadyAt > now) {
+      return {
+        ok: false,
+        code: "AUDIENCE_EVENT_COOLDOWN",
+        message: `${option.label} 冷卻中，${Math.ceil((typeReadyAt - now) / 1000)} 秒後可再觸發。`,
+        retryAfterMs: typeReadyAt - now,
+        typeReadyAt,
+        intervention: serializeAudienceInterventions(state, now)
+      };
+    }
+    if (state.usedThisRound >= state.roundLimit) {
+      return {
+        ok: false,
+        code: "AUDIENCE_ROUND_LIMIT",
+        message: "本局觀眾事件權已用完，下一局重置。",
+        intervention: serializeAudienceInterventions(state, now)
+      };
+    }
+
+    const result = triggerBattleEventCue(room, eventType, now, {
+      requestedBy: "audience",
+      source: "audience_intervention",
+      actorRole: actor.role,
+      actorName: actor.name,
+      label: `觀眾觸發：${option.label}`
+    });
+    if (!result.ok) return result;
+
+    state.usedThisRound += 1;
+    state.lastByActor[actor.id] = now;
+    state.lastByType[eventType] = now;
+    state.updatedAt = now;
+    state.history.push({
+      eventType,
+      label: option.label,
+      actorRole: actor.role,
+      actorName: actor.name,
+      at: now,
+      round: room.round
+    });
+    state.history = state.history.slice(-40);
+
+    recordControl(room, "audienceBattleEvents", now);
+    this.recordBattleEvent(session, result.event);
+    return {
+      ok: true,
+      event: result.event,
+      actorReadyAt: now + state.actorCooldownMs,
+      typeReadyAt: now + state.eventCooldownMs,
+      intervention: serializeAudienceInterventions(state, now),
+      session: this.getPublicSession(resolvedSessionId)
+    };
   }
 
   recordJoinPageView(sessionId, socketId) {
@@ -708,8 +1033,10 @@ export class GameWorld {
   getSessionExport(sessionId) {
     const session = this.getSession(sessionId);
     if (!session) return null;
+    updateScarcityState(session.room, this.now());
+    const gameConfig = activeGameConfig(session.room);
     return createSessionExport(session, {
-      maxPlayers: GAME.maxPlayers,
+      maxPlayers: gameConfig.maxPlayers,
       lastTickDurationMs: this.lastTickDurationMs,
       now: this.now()
     });
@@ -721,8 +1048,9 @@ export class GameWorld {
       const room = session.room;
       if (room.status !== "playing") continue;
       const dt = GAME.tickMs / 1000;
+      const gameConfig = activeGameConfig(room);
       room.tick += 1;
-      for (const event of evaluateBattleEvents(room, GAME, now, (player, damage, context = {}) =>
+      for (const event of evaluateBattleEvents(room, gameConfig, now, (player, damage, context = {}) =>
         this.applyCombatDamage(room, player, damage, { ...context, now })
       )) {
         this.recordBattleEvent(session, event);
@@ -960,6 +1288,7 @@ export class GameWorld {
     }
     recordRoundAnalytics(room, session, this.now());
     this.audit(session, "round_finished", { round: room.round, winnerTeam }, "director");
+    updateScarcityState(room, this.now());
     this.runDirector(session);
   }
 
@@ -977,13 +1306,48 @@ export class GameWorld {
     });
   }
 
-  promoteQueue(room) {
-    while (room.status === "waiting" && !room.locked && room.players.size < GAME.maxPlayers && room.queue.length > 0) {
-      const next = room.queue.shift();
-      next.connected = true;
-      room.players.set(next.id, next);
-      this.socketIndex.set(next.socketId, { sessionId: this.findSessionIdByRoom(room), playerId: next.id, clientType: "player" });
+  rebalanceWaitingRoom(session, options = {}) {
+    const room = session?.room;
+    if (!room) return { demoted: 0, promoted: 0 };
+    let demoted = 0;
+    let promoted = 0;
+    if (room.status === "waiting") {
+      demoted = this.demoteOverflowPlayers(room, session.id);
+      promoted = this.promoteQueue(room, session.id);
+      if (demoted || promoted || options.resetPositions) {
+        this.assignTeams(room, options.resetPositions === true);
+      }
     }
+    updateScarcityState(room, this.now());
+    return { demoted, promoted };
+  }
+
+  demoteOverflowPlayers(room, sessionId) {
+    const seatLimit = activeSeatLimit(room);
+    if (room.players.size <= seatLimit) return 0;
+    const players = [...room.players.values()].sort((a, b) => a.joinedAt - b.joinedAt);
+    const overflow = players.slice(seatLimit);
+    for (const player of overflow) {
+      room.players.delete(player.id);
+      player.input = createEmptyInput();
+      this.socketIndex.set(player.socketId, { sessionId, playerId: player.id, clientType: "queued" });
+    }
+    room.queue = [...overflow, ...room.queue];
+    return overflow.length;
+  }
+
+  promoteQueue(room, sessionId = null) {
+    const resolvedSessionId = sessionId || this.findSessionIdByRoom(room);
+    let promoted = 0;
+    while (room.status === "waiting" && !room.locked && room.players.size < activeSeatLimit(room) && room.queue.length > 0) {
+      const next = room.queue.shift();
+      preparePlayerForSeat(next, this.now());
+      room.players.set(next.id, next);
+      this.socketIndex.set(next.socketId, { sessionId: resolvedSessionId, playerId: next.id, clientType: "player" });
+      recordFunnel(room, "promotedFromQueue", this.now());
+      promoted += 1;
+    }
+    return promoted;
   }
 
   findSessionIdByRoom(room) {
@@ -991,6 +1355,22 @@ export class GameWorld {
       if (session.room === room) return session.id;
     }
     return null;
+  }
+
+  resolveAudienceActor(room, info, socketId) {
+    if (info.clientType === "queued" && info.playerId) {
+      const queued = room.queue.find((player) => player.id === info.playerId);
+      return {
+        id: `queued:${info.playerId}`,
+        role: "queued",
+        name: queued?.name || "候補玩家"
+      };
+    }
+    return {
+      id: `spectator:${socketId}`,
+      role: "spectator",
+      name: "觀眾"
+    };
   }
 
   audit(session, action, details, category = eventCategory(action)) {
@@ -1018,7 +1398,7 @@ export class GameWorld {
   }
 
   runDirector(session, now = this.now()) {
-    const signals = evaluateDirector(session.room, GAME, now);
+    const signals = evaluateDirector(session.room, activeGameConfig(session.room), now);
     for (const signal of signals) {
       this.recordDirectorSignal(session, signal);
     }
@@ -1077,9 +1457,11 @@ export class GameWorld {
     const session = this.getSession(id);
     if (!session) return null;
     const room = session.room;
+    updateScarcityState(room, this.now());
     const sessionPilotIds = collectSessionPilotIds(room);
+    const gameConfig = activeGameConfig(room);
     const metrics = createRoomMetrics(room, {
-      maxPlayers: GAME.maxPlayers,
+      maxPlayers: gameConfig.maxPlayers,
       lastTickDurationMs: this.lastTickDurationMs,
       now: this.now()
     });
@@ -1088,10 +1470,15 @@ export class GameWorld {
       id: session.id,
       label: session.label,
       createdAt: session.createdAt,
+      game: gameConfig,
       room: {
         id: room.id,
         status: room.status,
         locked: room.locked,
+        entryMode: room.entryMode,
+        seatLimit: room.seatLimit,
+        hardMaxPlayers: room.hardMaxPlayers,
+        scarcity: room.scarcity,
         tick: room.tick,
         round: room.round,
         roundEndsAt: room.roundEndsAt,
@@ -1100,7 +1487,8 @@ export class GameWorld {
         players: [...room.players.values()].map(serializePlayer),
         queue: room.queue.map((player) => ({
           id: player.id,
-          name: player.name
+          name: player.name,
+          position: room.queue.findIndex((queued) => queued.id === player.id) + 1
         })),
         spectators: room.spectators.size,
         projectiles: [...room.projectiles.values()].map(serializeProjectile),
@@ -1109,6 +1497,7 @@ export class GameWorld {
           .map(serializeDamageEvent),
         director: serializeDirector(room.director, this.now()),
         battleEvents: serializeBattleEvents(room.battleEvents, this.now()),
+        audienceInterventions: serializeAudienceInterventions(ensureAudienceInterventionState(room, this.now()), this.now()),
         analytics: createAdminAnalytics(room, { now: this.now() }),
         roundSummary: room.roundSummary || null,
         auditLog: room.auditLog.slice(-12),
