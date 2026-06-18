@@ -44,3 +44,10 @@ test("admin token must match exactly", () => {
   assert.equal(requireAdminToken("abc123 ", config), false);
   assert.equal(requireAdminToken("", config), false);
 });
+
+test("production disables the public test admin token when ADMIN_TOKEN is missing", () => {
+  const config = loadConfig({ NODE_ENV: "production" });
+
+  assert.equal(config.adminToken, "");
+  assert.equal(requireAdminToken("change-me-to-a-32-character-random-token", config), false);
+});

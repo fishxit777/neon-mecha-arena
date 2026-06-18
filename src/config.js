@@ -1,5 +1,6 @@
 export function loadConfig(env = process.env) {
   const port = Number.parseInt(env.PORT || "3000", 10);
+  const isProduction = env.NODE_ENV === "production";
   const localOrigins = [
     `http://localhost:${port}`,
     `http://127.0.0.1:${port}`,
@@ -12,10 +13,10 @@ export function loadConfig(env = process.env) {
 
   return {
     port,
-    adminToken: env.ADMIN_TOKEN || "change-me-to-a-32-character-random-token",
+    adminToken: env.ADMIN_TOKEN || (isProduction ? "" : "change-me-to-a-32-character-random-token"),
     publicOrigins: [...new Set([...configuredOrigins, ...localOrigins])],
     sessionSecret: env.SESSION_SECRET || "local-session-secret",
-    isProduction: env.NODE_ENV === "production"
+    isProduction
   };
 }
 
