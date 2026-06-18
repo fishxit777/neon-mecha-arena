@@ -28,6 +28,22 @@ test("players join a session and are assigned teams", () => {
   );
 });
 
+test("public join rejects admin client type", () => {
+  const world = new GameWorld(() => 1_000);
+  const session = world.createSession("Public Boundary");
+
+  const result = world.joinSession({
+    sessionId: session.id,
+    socketId: "not-owner",
+    clientType: "admin",
+    name: "Viewer"
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "INVALID_CLIENT_TYPE");
+  assert.equal(world.getPublicSession(session.id).room.players.length, 0);
+});
+
 test("latestPublicSession returns the newest session for fixed Studio source", () => {
   const world = new GameWorld(() => 1_000);
   const first = world.createSession("First");

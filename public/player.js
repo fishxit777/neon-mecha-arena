@@ -59,6 +59,15 @@ const state = {
   }
 };
 
+let join;
+let updateStats;
+let setQueuedView;
+let activatePlayerView;
+let renderJoinScarcity;
+let triggerAudienceIntervention;
+let renderAudienceInterventions;
+let updateQuickLayoutToggle;
+
 const els = {
   socketStatus: document.querySelector("#socketStatus"),
   joinPanel: document.querySelector("#joinPanel"),
@@ -97,6 +106,9 @@ const els = {
 document.title = "NEON MECHA ARENA";
 document.querySelector(".brand h1").textContent = "NEON MECHA ARENA";
 
+hydratePlayerCopy();
+renderAudienceInterventions = () => {};
+updateQuickLayoutToggle = () => {};
 applyControlLayout(state.controlLayout);
 applyControlSize(state.controlSize);
 applyControlPositions();
@@ -129,7 +141,7 @@ socket.on("game_state", (gameState) => {
   render();
 });
 
-els.joinBtn.addEventListener("click", join);
+els.joinBtn.addEventListener("click", () => join());
 els.nameInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") join();
 });
@@ -201,7 +213,7 @@ els.settingsToggle?.addEventListener("click", () => {
 els.quickLayoutToggle?.addEventListener("click", () => {
   applyControlLayout(state.controlLayout === "left" ? "right" : "left");
 });
-window.addEventListener("resize", updateQuickLayoutToggle);
+window.addEventListener("resize", () => updateQuickLayoutToggle());
 
 els.controlDeck?.addEventListener("pointerdown", startControlDrag, true);
 els.controlDeck?.addEventListener("mousedown", startControlDrag, true);
@@ -248,9 +260,44 @@ window.addEventListener("keyup", (event) => {
 setInterval(() => {
   if (state.joined) sendInput();
 }, 110);
-setInterval(renderAudienceInterventions, 250);
+setInterval(() => renderAudienceInterventions(), 250);
 
-function join() {
+function hydratePlayerCopy() {
+  const setText = (selector, text) => {
+    const node = document.querySelector(selector);
+    if (node) node.textContent = text;
+  };
+
+  setText("#socketStatus span:last-child", "連線中");
+  setText("#joinPanel h2", "搶位 / 候補登記");
+  setText("#joinPanel label .muted", "玩家名稱");
+  setText("#interventionPanel strong", "候補場外支援");
+  setText("#playerTitle", "駕駛員");
+  setText(".stat:nth-child(1) .muted", "隊伍");
+  setText(".stat:nth-child(3) .muted", "狀態");
+  setText(".stat:nth-child(4) .muted", "稱號");
+  setText("[data-layout='right']", "右手");
+  setText("[data-layout='left']", "左手");
+  setText("[data-control-size='compact']", "小");
+  setText("[data-control-size='standard']", "中");
+  setText("[data-control-size='large']", "大");
+  setText("#customizeControlsBtn", "調整");
+  setText("#resetControlsBtn", "重置");
+  setText(".attack-label strong", "攻擊");
+  setText("#sessionLabel", "等待場次");
+
+  if (els.nameInput) els.nameInput.placeholder = "輸入玩家名稱";
+  if (els.joinBtn) els.joinBtn.textContent = "登記席位";
+  if (els.interventionStatus) {
+    els.interventionStatus.textContent = "候補玩家可在對戰開始後送出支援，不需要後台權限。";
+  }
+  if (els.settingsToggle) {
+    els.settingsToggle.textContent = "⚙";
+    els.settingsToggle.setAttribute("aria-label", "控制設定");
+  }
+}
+
+join = function joinPublicFlow() {
   resumeAudio();
   const name = els.nameInput.value.trim() || `玩家${Math.floor(Math.random() * 999)}`;
   els.joinNotice.hidden = true;
@@ -300,9 +347,9 @@ function sendInput() {
   }
   state.lastInputSentAt = now;
   socket.emit("player_input", state.input);
-}
+};
 
-function updateStats() {
+updateStats = function updateStatsPublicFlow() {
   const room = state.game?.room;
   const player = room?.players?.find((item) => item.id === state.playerId);
   if (!player) {
@@ -355,9 +402,9 @@ function syncCockpitStrip(player, room) {
   });
 
   document.body.classList.toggle("is-round-finished", room?.status === "finished");
-}
+};
 
-function setQueuedView(message, room) {
+setQueuedView = function setQueuedViewPublicFlow(message, room) {
   els.joinPanel.hidden = false;
   els.gamePanel.hidden = true;
   els.joinBtn.disabled = true;
@@ -369,9 +416,9 @@ function setQueuedView(message, room) {
   document.body.classList.remove("is-player-active");
   renderJoinScarcity(room);
   renderAudienceInterventions();
-}
+};
 
-function activatePlayerView(name, role = "player", room = null) {
+activatePlayerView = function activatePlayerViewPublicFlow(name, role = "player", room = null) {
   els.joinPanel.hidden = true;
   els.joinNotice.hidden = true;
   els.gamePanel.hidden = false;
@@ -395,9 +442,9 @@ function syncQueuedPromotion(room) {
   state.pilotId = player.pilotId || state.pilotId;
   localStorage.setItem("tiktokPvpPilotId", state.pilotId);
   activatePlayerView(player.name, "player", room);
-}
+};
 
-function renderJoinScarcity(room) {
+renderJoinScarcity = function renderJoinScarcityPublicFlow(room) {
   if (!els.scarcityStatus) return;
   const scarcity = room?.scarcity;
   if (!scarcity) {
@@ -411,9 +458,9 @@ function renderJoinScarcity(room) {
     <span>${scarcity.message}${queueText}</span><br>
     <span class="muted">上場 ${scarcity.activePlayers}/${scarcity.seatLimit} · 剩 ${scarcity.openSlots} 席 · 候補 ${scarcity.queuedPlayers} 人</span>
   `;
-}
+};
 
-function triggerAudienceIntervention(eventType) {
+triggerAudienceIntervention = function triggerAudienceInterventionPublicFlow(eventType) {
   if (!eventType || state.role !== "queued") return;
   socket.emit("audience_intervention", { sessionId, eventType }, (result) => {
     if (result?.session) {
@@ -428,9 +475,9 @@ function triggerAudienceIntervention(eventType) {
     }
     renderAudienceInterventions();
   });
-}
+};
 
-function renderAudienceInterventions() {
+renderAudienceInterventions = function renderAudienceInterventionsPublicFlow() {
   if (!els.interventionPanel || !els.interventionStatus) return;
   const isQueued = state.joined && state.role === "queued";
   els.interventionPanel.hidden = !isQueued;
@@ -699,15 +746,15 @@ function applyControlLayout(layout) {
   }
   if (!state.joystickActive) syncJoystickFromInput();
   scheduleControlBoundsCheck();
-}
+};
 
-function updateQuickLayoutToggle() {
+updateQuickLayoutToggle = function updateQuickLayoutTogglePublicFlow() {
   if (!els.quickLayoutToggle) return;
   const target = state.controlLayout === "left" ? "right" : "left";
   const compact = window.matchMedia("(max-width: 380px)").matches;
   els.quickLayoutToggle.textContent = target === "right" ? (compact ? "右手" : "→ 切換右手") : (compact ? "左手" : "← 切換左手");
   els.quickLayoutToggle.setAttribute("aria-label", target === "right" ? "切換右手模式" : "切換左手模式");
-}
+};
 
 function getSavedControlLayout() {
   return localStorage.getItem(CONTROL_LAYOUT_KEY) === "left" ? "left" : "right";
@@ -1001,4 +1048,176 @@ function getOrCreatePilotId() {
   const id = `pilot_${[...bytes].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
   localStorage.setItem("tiktokPvpPilotId", id);
   return id;
+}
+
+join = function joinPublicFlow() {
+  resumeAudio();
+  const name = els.nameInput.value.trim() || `玩家${Math.floor(Math.random() * 999)}`;
+  els.joinNotice.hidden = true;
+  els.joinNotice.textContent = "";
+  socket.emit(
+    "join_session",
+    {
+      sessionId,
+      clientType: "player",
+      name,
+      pilotId: state.pilotId
+    },
+    (result) => {
+      if (!result?.ok) {
+        els.joinNotice.textContent = result?.message || "加入失敗，請重新整理後再試。";
+        els.joinNotice.hidden = false;
+        return;
+      }
+      state.joined = true;
+      state.playerId = result.playerId;
+      state.session = result.session || state.session;
+      state.pilotId = result.session?.room?.players?.find((player) => player.id === result.playerId)?.pilotId || state.pilotId;
+      localStorage.setItem("tiktokPvpPilotId", state.pilotId);
+      state.role = result.role;
+      els.sessionLabel.textContent = result.session?.label || sessionId;
+      if (result.role === "queued") {
+        setQueuedView(result.message, result.session?.room);
+        return;
+      }
+      activatePlayerView(name, result.role, result.session?.room);
+    }
+  );
+};
+
+updateStats = function updateStatsPublicFlow() {
+  const room = state.game?.room;
+  const player = room?.players?.find((item) => item.id === state.playerId);
+  if (!player) {
+    els.teamStat.textContent = state.role === "queued" ? "候補" : "-";
+    els.teamStat.className = "";
+    els.hpStat.textContent = "-";
+    const queued = room?.queue?.find((item) => item.id === state.playerId);
+    els.stateStat.textContent = queued ? `候補 #${queued.position || "-"}` : room?.status || "-";
+    els.titleStat.textContent = "-";
+    syncCockpitStrip(null, room);
+    return;
+  }
+  els.teamStat.textContent = player.team === "red" ? "紅隊" : "藍隊";
+  els.teamStat.className = player.team === "red" ? "team-red" : "team-blue";
+  els.hpStat.textContent = `${player.hp} / ${player.lives ?? 1}`;
+  els.stateStat.textContent = player.alive ? room.status : "擊破";
+  els.titleStat.textContent = player.titles?.[0] || "Rookie";
+  syncCockpitStrip(player, room);
+};
+
+setQueuedView = function setQueuedViewPublicFlow(message, room) {
+  els.joinPanel.hidden = false;
+  els.gamePanel.hidden = true;
+  els.joinBtn.disabled = true;
+  els.joinBtn.textContent = "候補中";
+  els.nameInput.disabled = true;
+  els.joinNotice.hidden = false;
+  els.joinNotice.textContent = message || room?.scarcity?.message || "已完成候補登記，請保持此頁開啟；有空位時會自動補位。";
+  if (els.interventionPanel) els.interventionPanel.hidden = false;
+  document.body.classList.remove("is-player-active");
+  renderJoinScarcity(room);
+  renderAudienceInterventions();
+};
+
+activatePlayerView = function activatePlayerViewPublicFlow(name, role = "player", room = null) {
+  els.joinPanel.hidden = true;
+  els.joinNotice.hidden = true;
+  els.gamePanel.hidden = false;
+  els.joinBtn.disabled = false;
+  els.joinBtn.textContent = "登記席位";
+  els.nameInput.disabled = false;
+  if (els.interventionPanel) els.interventionPanel.hidden = true;
+  document.body.classList.add("is-player-active");
+  setControllerSettingsOpen(false);
+  scheduleControlBoundsCheck();
+  els.playerTitle.textContent = name;
+  els.rolePill.textContent = role;
+  if (room?.status === "playing") startBGM();
+};
+
+renderJoinScarcity = function renderJoinScarcityPublicFlow(room) {
+  if (!els.scarcityStatus) return;
+  const scarcity = room?.scarcity;
+  if (!scarcity) {
+    els.scarcityStatus.textContent = "等待主播開放本場席位。";
+    return;
+  }
+  const queued = room.queue?.find((item) => item.id === state.playerId);
+  const queueText = queued ? ` · 你的候補序號 #${queued.position || "-"}` : "";
+  els.scarcityStatus.innerHTML = `
+    <strong>${escapeHtml(scarcity.scarcityLabel || `${scarcity.seatLimit} 席限量`)}</strong><br>
+    <span>${escapeHtml(scarcity.message || "席位狀態更新中")}${escapeHtml(queueText)}</span><br>
+    <span class="muted">上場 ${scarcity.activePlayers}/${scarcity.seatLimit} · 剩 ${scarcity.openSlots} 席 · 候補 ${scarcity.queuedPlayers} 人</span>
+  `;
+};
+
+triggerAudienceIntervention = function triggerAudienceInterventionPublicFlow(eventType) {
+  if (!eventType || state.role !== "queued") return;
+  socket.emit("audience_intervention", { sessionId, eventType }, (result) => {
+    if (result?.session) {
+      state.session = result.session;
+    }
+    if (result?.ok) {
+      state.intervention.actorReadyAt = result.actorReadyAt || Date.now() + (result.intervention?.actorCooldownMs || 20_000);
+      state.intervention.message = `${result.event?.title || "場外支援"} 已送出`;
+    } else {
+      if (result?.actorReadyAt) state.intervention.actorReadyAt = result.actorReadyAt;
+      state.intervention.message = result?.message || "場外支援暫時無法送出。";
+    }
+    renderAudienceInterventions();
+  });
+};
+
+renderAudienceInterventions = function renderAudienceInterventionsPublicFlow() {
+  if (!els.interventionPanel || !els.interventionStatus) return;
+  const isQueued = state.joined && state.role === "queued";
+  els.interventionPanel.hidden = !isQueued;
+  if (!isQueued) return;
+
+  const room = state.game?.room || state.session?.room;
+  const interventions = room?.audienceInterventions;
+  const now = Date.now();
+  const actorRemaining = Math.max(0, (state.intervention.actorReadyAt || 0) - now);
+  const remaining = interventions?.remaining ?? 0;
+  const isPlaying = room?.status === "playing";
+
+  for (const button of els.interventionButtons) {
+    const option = interventions?.options?.find((item) => item.eventType === button.dataset.audienceEvent);
+    const label = option?.label || button.textContent;
+    const typeRemaining = Math.max(0, (option?.readyAt || 0) - now);
+    button.disabled = !isPlaying || remaining <= 0 || actorRemaining > 0 || typeRemaining > 0;
+    button.textContent = typeRemaining > 0 ? `${label} ${Math.ceil(typeRemaining / 1000)}s` : label;
+  }
+
+  if (!isPlaying) {
+    els.interventionStatus.textContent = "候補登記已完成。對戰開始後，這裡會開放候補場外支援。";
+    return;
+  }
+  if (remaining <= 0) {
+    els.interventionStatus.textContent = "本局場外支援次數已用完。";
+    return;
+  }
+  if (actorRemaining > 0) {
+    els.interventionStatus.textContent = `個人冷卻 ${Math.ceil(actorRemaining / 1000)}s · 本局剩 ${remaining}/${interventions.roundLimit}`;
+    return;
+  }
+  els.interventionStatus.textContent = `${state.intervention.message || "可送出候補場外支援"} · 本局剩 ${remaining}/${interventions?.roundLimit || 0}`;
+};
+
+updateQuickLayoutToggle = function updateQuickLayoutTogglePublicFlow() {
+  if (!els.quickLayoutToggle) return;
+  const target = state.controlLayout === "left" ? "right" : "left";
+  const compact = window.matchMedia("(max-width: 380px)").matches;
+  els.quickLayoutToggle.textContent = target === "right" ? (compact ? "右手" : "切右手") : (compact ? "左手" : "切左手");
+  els.quickLayoutToggle.setAttribute("aria-label", target === "right" ? "切換右手控制" : "切換左手控制");
+};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }

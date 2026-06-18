@@ -1,10 +1,14 @@
 const socket = io();
 
 const TEST_ADMIN_TOKEN = "change-me-to-a-32-character-random-token";
+const ADMIN_TOKEN_STORAGE_KEY = "tiktokPvpAdminToken";
+const LOCAL_OWNER_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const shouldPrefillTestToken = LOCAL_OWNER_HOSTS.has(location.hostname);
+const savedAdminToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
 
 const state = {
   authed: false,
-  token: TEST_ADMIN_TOKEN,
+  token: savedAdminToken || (shouldPrefillTestToken ? TEST_ADMIN_TOKEN : ""),
   selectedSessionId: localStorage.getItem("tiktokPvpSessionId") || "",
   sessions: [],
   entryModes: [],
@@ -78,10 +82,14 @@ const els = {
   hypeMomentBtn: document.querySelector("#hypeMomentBtn")
 };
 
-localStorage.setItem("tiktokPvpAdminToken", TEST_ADMIN_TOKEN);
 els.tokenInput.value = state.token;
 els.message.textContent = `測試階段 Admin Token 已預填：${TEST_ADMIN_TOKEN}`;
 renderNetworkHint();
+els.tokenInput.type = shouldPrefillTestToken ? "text" : "password";
+els.message.textContent = shouldPrefillTestToken
+  ? `本機測試 Admin Token 已預填：${TEST_ADMIN_TOKEN}`
+  : "Owner only. 請輸入 Admin Token 後才會顯示控制台；玩家與候補不需要也不能使用後台。";
+renderAdminGate();
 render();
 
 socket.on("connect", () => {
@@ -221,21 +229,33 @@ function runBotCommand(action, payload = {}) {
   command(action, { sessionId: session.id, ...payload });
 }
 
+function renderAdminGate() {
+  document.body.classList.toggle("admin-locked", !state.authed);
+  if (els.authBtn) {
+    els.authBtn.textContent = state.authed ? "已驗證" : "登入";
+  }
+  if (els.createBtn) {
+    els.createBtn.disabled = !state.authed;
+  }
+}
+
 function auth() {
   state.token = els.tokenInput.value.trim();
   socket.emit("admin_auth", { token: state.token }, (result) => {
     if (!result?.ok) {
       state.authed = false;
       els.createBtn.disabled = true;
+      renderAdminGate();
       show(result?.message || "登入失敗");
       return;
     }
     state.authed = true;
-    localStorage.setItem("tiktokPvpAdminToken", state.token);
+    localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, state.token);
     els.createBtn.disabled = false;
     state.sessions = result.state?.sessions || [];
     state.entryModes = result.state?.entryModes || state.entryModes;
     state.battleEventTypes = result.state?.battleEvents || [];
+    renderAdminGate();
     show("已登入");
     render();
   });

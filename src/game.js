@@ -460,20 +460,22 @@ export class GameWorld {
     if (!session) return { ok: false, code: "SESSION_NOT_FOUND", message: "Session not found" };
 
     const room = session.room;
-    if (clientType === "spectator") {
+    const publicClientType = clientType === "spectator" ? "spectator" : clientType === "player" ? "player" : null;
+    if (!publicClientType) {
+      return {
+        ok: false,
+        code: "INVALID_CLIENT_TYPE",
+        message: "公開入口只允許玩家或觀眾身份。"
+      };
+    }
+
+    if (publicClientType === "spectator") {
       room.spectators.add(socketId);
       this.socketIndex.set(socketId, { sessionId, clientType: "spectator" });
       recordSpectatorSeen(room, this.now());
       recordActivity(room, "joins", this.now());
       this.runDirector(session);
       return { ok: true, role: "spectator", session: this.getPublicSession(sessionId) };
-    }
-
-    if (clientType === "admin") {
-      session.adminSockets.add(socketId);
-      this.socketIndex.set(socketId, { sessionId, clientType: "admin" });
-      this.runDirector(session);
-      return { ok: true, role: "admin", session: this.getPublicSession(sessionId) };
     }
 
     const playerName = cleanNickname(name);

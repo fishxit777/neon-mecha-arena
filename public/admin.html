@@ -275,9 +275,18 @@
           grid-template-columns: 1fr;
         }
       }
+
+      body.admin-locked .owner-only {
+        display: none !important;
+      }
+
+      body.admin-locked #labelInput,
+      body.admin-locked #createBtn {
+        display: none !important;
+      }
     </style>
   </head>
-  <body>
+  <body class="admin-locked">
     <main class="app-shell">
       <header class="topbar">
         <div class="brand">
@@ -310,7 +319,7 @@
           </div>
         </article>
 
-        <article class="panel">
+        <article class="panel owner-only">
           <div class="panel-header">
             <h2>目前場次</h2>
             <span class="muted mono" id="selectedId">未選擇</span>
@@ -363,7 +372,7 @@
         </article>
       </section>
 
-      <section class="panel" style="margin-top: 16px;">
+      <section class="panel owner-only" style="margin-top: 16px;">
         <div class="panel-header">
           <h2>TikTok LIVE Studio 開播流程</h2>
           <span class="muted">最少步驟版</span>
@@ -385,7 +394,7 @@
         </div>
       </section>
 
-      <section class="panel" style="margin-top: 16px;">
+      <section class="panel owner-only" style="margin-top: 16px;">
         <div class="panel-header">
           <h2>客戶後台數據中心</h2>
           <div class="export-actions">
@@ -444,7 +453,7 @@
         </div>
       </section>
 
-      <section class="panel" style="margin-top: 16px;">
+      <section class="panel owner-only" style="margin-top: 16px;">
         <div class="panel-header">
           <h2>自動生成直播素材</h2>
           <div class="export-actions">
@@ -474,7 +483,7 @@
         </div>
       </section>
 
-      <section class="grid two" style="margin-top: 16px;">
+      <section class="grid two owner-only" style="margin-top: 16px;">
         <article class="panel">
           <div class="panel-header">
             <h2>Sessions</h2>
@@ -527,7 +536,7 @@
         </article>
       </section>
 
-      <section class="grid two" style="margin-top: 16px;">
+      <section class="grid two owner-only" style="margin-top: 16px;">
         <article class="panel">
           <div class="panel-header">
             <h2>AI 直播戰場導演</h2>
@@ -556,7 +565,7 @@
         </article>
       </section>
 
-      <section class="grid two" style="margin-top: 16px;">
+      <section class="grid two owner-only" style="margin-top: 16px;">
         <article class="panel">
           <div class="panel-header">
             <h2>戰場事件系統</h2>
