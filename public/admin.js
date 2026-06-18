@@ -2,6 +2,7 @@ const socket = io();
 
 const TEST_ADMIN_TOKEN = "change-me-to-a-32-character-random-token";
 const ADMIN_TOKEN_STORAGE_KEY = "tiktokPvpAdminToken";
+const SESSION_SELECTION_STORAGE_KEY = "tiktokPvpSessionId";
 const LOCAL_OWNER_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const shouldPrefillTestToken = LOCAL_OWNER_HOSTS.has(location.hostname);
 const savedAdminToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
@@ -9,7 +10,8 @@ const savedAdminToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
 const state = {
   authed: false,
   token: savedAdminToken || (shouldPrefillTestToken ? TEST_ADMIN_TOKEN : ""),
-  selectedSessionId: localStorage.getItem("tiktokPvpSessionId") || "",
+  selectedSessionId: localStorage.getItem(SESSION_SELECTION_STORAGE_KEY) || "",
+  selectionTouched: false,
   sessions: [],
   entryModes: [],
   entryModeDrafts: {},
@@ -146,7 +148,8 @@ els.openStudioPreviewBtn.addEventListener("click", () => {
 });
 els.clearSelection.addEventListener("click", () => {
   state.selectedSessionId = "";
-  localStorage.removeItem("tiktokPvpSessionId");
+  state.selectionTouched = false;
+  localStorage.removeItem(SESSION_SELECTION_STORAGE_KEY);
   render();
 });
 els.addBotBtn?.addEventListener("click", () => runBotCommand("add_bot_player", { mode: "auto" }));
@@ -264,8 +267,7 @@ function auth() {
 function createSession() {
   command("create_session", { label: els.labelInput.value.trim() || "NEON MECHA ARENA" }, (result) => {
     if (result?.ok && result.session?.id) {
-      state.selectedSessionId = result.session.id;
-      localStorage.setItem("tiktokPvpSessionId", state.selectedSessionId);
+      selectSessionId(result.session.id, { manual: true });
       show("Session 已建立，請複製 TikTok 直式來源到 LIVE Studio。");
       render();
     }
@@ -331,7 +333,7 @@ function render() {
     ? `${selected.metrics.activePlayers}/${selected.metrics.maxPlayers} 席 · queue ${selected.metrics.queuedPlayers} · spectator ${selected.metrics.spectators}`
     : "-";
 
-  renderSessions();
+  renderSessions(selected);
   renderPlayers(selected);
   renderQueue(selected);
   renderPilots(selected);
@@ -559,22 +561,26 @@ function buildStudioGuideText(session) {
   ].join("\n");
 }
 
-function renderSessions() {
+function renderSessions(selected = selectedSession()) {
   els.sessionList.innerHTML = "";
-  for (const session of state.sessions) {
+  for (const session of sessionsForDisplay(selected)) {
     const item = document.createElement("button");
-    item.className = `session-item ${session.id === selectedSession()?.id ? "active" : ""}`;
+    const isSelected = session.id === selected?.id;
+    item.type = "button";
+    item.className = `session-item ${isSelected ? "active" : ""}`;
     item.innerHTML = `
       <div class="row" style="justify-content: space-between;">
         <strong>${escapeHtml(session.label)}</strong>
         <span class="muted mono">${escapeHtml(session.room.status)}</span>
       </div>
       <div class="muted mono">${escapeHtml(session.id)}</div>
+      ${isSelected ? '<div class="muted">目前直播場</div>' : ""}
       <div class="muted">${session.metrics.activePlayers}/${session.metrics.maxPlayers} 席 · queue ${session.metrics.queuedPlayers} · ${session.metrics.spectators} spectators</div>
     `;
-    item.addEventListener("click", () => {
-      state.selectedSessionId = session.id;
-      localStorage.setItem("tiktokPvpSessionId", session.id);
+    item.addEventListener("click", (event) => {
+      event.preventDefault();
+      selectSessionId(session.id, { manual: true });
+      show(`已切換目前直播場：${session.id}`);
       render();
     });
     els.sessionList.append(item);
@@ -855,7 +861,60 @@ function renderTimeline(container, events, emptyText) {
 }
 
 function selectedSession() {
-  return state.sessions.find((session) => session.id === state.selectedSessionId) || state.sessions[0] || null;
+  const explicit = state.sessions.find((session) => session.id === state.selectedSessionId) || null;
+  const preferred = preferredLiveSession();
+  const selected = state.selectionTouched ? explicit || preferred : preferred || explicit;
+  if (selected && selected.id !== state.selectedSessionId && !state.selectionTouched) {
+    selectSessionId(selected.id);
+  }
+  return selected || null;
+}
+
+function selectSessionId(sessionId, { manual = false } = {}) {
+  state.selectedSessionId = sessionId || "";
+  if (manual) state.selectionTouched = true;
+  if (state.selectedSessionId) {
+    localStorage.setItem(SESSION_SELECTION_STORAGE_KEY, state.selectedSessionId);
+  } else {
+    localStorage.removeItem(SESSION_SELECTION_STORAGE_KEY);
+  }
+}
+
+function preferredLiveSession() {
+  return sessionsForDisplay()[0] || null;
+}
+
+function sessionsForDisplay(selected = null) {
+  const selectedId = selected?.id || state.selectedSessionId;
+  return [...state.sessions].sort((a, b) => {
+    if (a.id === selectedId && b.id !== selectedId && state.selectionTouched) return -1;
+    if (b.id === selectedId && a.id !== selectedId && state.selectionTouched) return 1;
+    const scoreDiff = sessionActivityScore(b) - sessionActivityScore(a);
+    if (scoreDiff) return scoreDiff;
+    return sessionCreatedAtMs(b) - sessionCreatedAtMs(a);
+  });
+}
+
+function sessionActivityScore(session) {
+  const metrics = session?.metrics || {};
+  const room = session?.room || {};
+  const activePlayers = numberOrZero(metrics.activePlayers ?? room.players?.length);
+  const queuedPlayers = numberOrZero(metrics.queuedPlayers ?? room.queue?.length);
+  const spectators = numberOrZero(metrics.spectators ?? room.spectators);
+  const playing = room.status === "playing" ? 10000 : 0;
+  const waiting = room.status === "waiting" ? 100 : 0;
+  return playing + activePlayers * 1000 + queuedPlayers * 200 + spectators * 50 + waiting;
+}
+
+function numberOrZero(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function sessionCreatedAtMs(session) {
+  const value = session?.createdAt;
+  if (Number.isFinite(Number(value))) return Number(value);
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function openExport(format) {
